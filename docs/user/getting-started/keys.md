@@ -167,6 +167,7 @@ Linux 的 `Tab` 规则：没有组句时 `Tab` / `Shift + Tab` 交给应用；�
 `Enter` 选高亮，`Shift + Enter` 原样输出注音。
 
 Linux 的直接输出译词、删除候选快捷键见上表；安装与配置位置见 [Linux](linux.md)。
+Fcitx5 面板显示的词性、日语假名注音和生词标记不随译词上屏，例如 `v. 開発(かいはつ)する` 只输出 `開発する`。
 选中应用文字后按 `Alt + Shift + T` 可调用云翻译；Fcitx5 需要应用提供选区，Fcitx4 在 X11 下还可读取当前应用的系统选区。快捷键可用 `[shortcut] translate_selection` 修改。
 
 ## Windows 默认模式与按应用记忆

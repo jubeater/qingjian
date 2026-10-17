@@ -354,7 +354,7 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
         const auto &translation = item.at("translation");
         if (!text.empty() && translation.is_object() && !translation.at("senses").empty()) {
             const auto &sense = translation.at("senses").front();
-            annotation = sense.at("text").get<std::string>();
+            annotation = sense.value("annotation", sense.at("text").get<std::string>());
             if (!annotation.empty()) senses.push_back({index, 0});
             if (sense.value("fresh", false)) annotation += " · 生";
         }

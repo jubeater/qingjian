@@ -1,4 +1,7 @@
 //! Linux 版本化显示初始化与实际呈现确认，Windows 协议保持不变。
+mod annotation;
+
+use self::annotation::annotate_frame;
 use super::Router;
 use crate::protocol::{
     DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent, LinuxRequest,
@@ -51,11 +54,13 @@ impl Router {
             .as_ref()
             .is_some_and(|job| job.result.is_none());
         match &response {
-            ServerMessage::KeyResult { .. } => {
-                value["KeyResult"]["frame"]["translation_pending"] = json!(pending)
+            ServerMessage::KeyResult { frame, .. } => {
+                value["KeyResult"]["frame"]["translation_pending"] = json!(pending);
+                annotate_frame(frame, &mut value["KeyResult"]["frame"]);
             }
-            ServerMessage::Update { .. } => {
-                value["Update"]["frame"]["translation_pending"] = json!(pending)
+            ServerMessage::Update { frame, .. } => {
+                value["Update"]["frame"]["translation_pending"] = json!(pending);
+                annotate_frame(frame, &mut value["Update"]["frame"]);
             }
             _ => {}
         }
