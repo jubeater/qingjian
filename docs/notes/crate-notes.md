@@ -455,7 +455,7 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 
 `qingjian-linux-server` 为独立产品，装配本地 Engine、词库、释义、频率学习、个人 n-gram、词汇记录与可选输入日志，
 本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，节拍与 Windows Server 的 `dispatch/rescore` 相同；云联想按 `[predict]` 接入。配置热加载在 `dispatch/reload`：`tick` 每秒看 `config.toml` mtime 与用户 `dicts/` 快照，`[predict]` / `[model]` / `[dictionaries]` / 学习语言按变化重建，其余无条件重设；`preedit`、`input_log` 仍要重启。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
-默认面板插件仅转换事件，Shift 模式、候选点击、分页和失焦提交都由 Server 决定。
+默认面板插件仅转换事件（Shift / Ctrl 本身报成 VK `0x10` / `0x11`），中英切换、候选点击、分页和失焦提交都由 Server 决定：`[shortcut] switch_mode` 的单击 Shift / Ctrl 在按下时记进会话的 `switch_tap`、中间按了别的键或失焦就作废，松开时切换；`Ctrl + Alt + Space` 在按下时切换。`[general] default_english` 定新会话的初始模式，`english_mode` 关掉时切换键全不认、热加载时把所有会话拉回中文。
 启动与热加载共用 `assembly::attach_cloud`；切换服务先取消旧请求与选区翻译，重建所有会话的本地候选布局以清除旧云词，保留本地高亮，聚焦会话再发新请求。无密钥时退回本地，不预留云词槽。插件把缺失的可选 `kind` / `sentence` 按本地候选 / 无整句处理。
 插件在清空预编辑之前上屏；上屏回调重入后核对生命周期和帧身份，跳过过期重画而不撤销或重复提交，见 [Linux 协议与状态](linux-fcitx5.md#协议与状态)。
 

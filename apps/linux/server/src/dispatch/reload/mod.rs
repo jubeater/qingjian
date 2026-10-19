@@ -108,6 +108,11 @@ impl Router {
         }
         self.config = RouterConfig::from(config);
         self.config.page_size = self.config.page_size.clamp(1, 9);
+        if !self.config.english_mode {
+            for info in self.sessions.values_mut() {
+                info.english = false;
+            }
+        }
 
         let Some(mut reload) = self.reload.take() else {
             return;

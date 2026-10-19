@@ -94,19 +94,19 @@ const LINKS: &[(PageId, &str, &str, &str)] = &[
         PageId::Language,
         "切换键",
         "input/english-mode",
-        "改掉或关掉中 / 英切换（Windows）",
+        "改掉或关掉中 / 英切换",
     ),
     (
         PageId::Language,
         "默认英文模式",
         "input/english-mode",
-        "默认模式与按应用记忆（Windows）",
+        "默认模式与按应用记忆",
     ),
     (
         PageId::Language,
         "按应用记住中英模式",
         "input/english-mode",
-        "默认模式与按应用记忆（Windows）",
+        "默认模式与按应用记忆",
     ),
     (
         PageId::Language,

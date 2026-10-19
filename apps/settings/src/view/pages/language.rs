@@ -36,7 +36,11 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
             ui,
             page,
             "默认英文模式",
-            Some("青简启动时用英文；按应用记住时，没记过的应用也从英文开始。改这两项会清掉已记住的状态"),
+            Some(if Feature::RememberModePerApp.here() {
+                "青简启动时用英文；按应用记住时，没记过的应用也从英文开始。改这两项会清掉已记住的状态"
+            } else {
+                "新打开的应用和窗口从英文开始"
+            }),
             ("general", "default_english"),
             general.default_english,
             !general.english_mode,
@@ -191,13 +195,15 @@ fn switch_keys(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
             Message::SetList("shortcut", "switch_mode", values),
         )?);
     }
-    let system = page.settings.ctrl_space;
-    boxes.push(Checkbox::new(system, "Ctrl + Space（系统）").build(
-        ui,
-        &page.theme,
-        "switch-key-system",
-        Message::SystemCtrlSpace(!system),
-    )?);
+    if Feature::SystemCtrlSpace.here() {
+        let system = page.settings.ctrl_space;
+        boxes.push(Checkbox::new(system, "Ctrl + Space（系统）").build(
+            ui,
+            &page.theme,
+            "switch-key-system",
+            Message::SystemCtrlSpace(!system),
+        )?);
+    }
     let column = ui.scene().node(
         Style {
             flex_direction: FlexDirection::Column,
@@ -212,7 +218,11 @@ fn switch_keys(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
         ui,
         page,
         SettingRow::new("切换键")
-            .info("勾上的都能切，可以多选。Ctrl + Space（系统）是 Windows 的设置，也会影响微软拼音等简体中文输入法")
+            .info(if Feature::SystemCtrlSpace.here() {
+                "勾上的都能切，可以多选。Ctrl + Space（系统）是 Windows 的设置，也会影响微软拼音等简体中文输入法"
+            } else {
+                "勾上的都能切，可以多选；都不勾时单击 Shift 原样交给应用"
+            })
             .control(column),
         "switch-keys",
     )

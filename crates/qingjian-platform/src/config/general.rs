@@ -102,7 +102,7 @@ pub struct GeneralConfig {
     /// 关掉后青简保持中文模式，切换键与语言栏按钮都不再切过去；要打英文请用系统快捷键切到别的输入法。
     pub english_mode: bool,
 
-    /// Windows：首次使用时默认英文；按应用记忆时用于没有记录的应用。
+    /// 默认英文：Windows 是首次使用时，按应用记忆时用于没有记录的应用；Linux 是每个新输入上下文。
     pub default_english: bool,
 
     /// Windows：按应用 exe 名记住中英状态，仅保存在本次 Server 运行期间。

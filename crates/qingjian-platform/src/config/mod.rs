@@ -185,7 +185,7 @@ delete_candidate = "shift"
 #[cfg(not(any(windows, target_os = "macos")))]
 macro_rules! template_shortcut_keys {
     () => {
-        r#"# 中 / 英模式切换键：shift 单击（缺省），[] 不用键切换。
+        r#"# 中 / 英模式切换键，可多选：shift 单击（缺省）/ control 单击 / ctrl+alt+space 组合键；[] 不用键切换，单击 Shift 原样交给应用
 switch_mode = ["shift"]
 # 数字键配这些修饰键上屏候选的译词：translation 第一个译词，translation_second 第二个
 translation = "alt"
@@ -274,9 +274,9 @@ auto_space = false
 # 缓冲区参与匹配，这样 Cpan 与 cpan 一样能出「C盘」。英文模式与英文直输段（no-Way）不受影响
 shift_letter = "passthrough"
 # 内置英文模式：开着时单击切换键（[shortcut] switch_mode）或 Caps Lock 亮着进英文模式
-# 关掉后青简保持中文模式，切换键与语言栏按钮都不再切过去；要打英文请用系统快捷键（Win+Space）切到别的输入法。只有 Windows 用，macOS 的中英切换是 Caps Lock
+# 关掉后青简保持中文模式，切换键与语言栏按钮都不再切过去；要打英文请用系统快捷键（Win+Space）切到别的输入法。Windows 与 Linux 用，macOS 的中英切换是 Caps Lock
 english_mode = true
-# Windows：初始英文；按应用记忆时也用于没有记录的应用
+# 初始英文：Windows 是青简启动时，按应用记忆时也用于没有记录的应用；Linux 是新打开的应用和窗口
 default_english = false
 # Windows：按应用 exe 名记住中英状态，重启青简后重新使用初始模式
 remember_mode_per_app = false

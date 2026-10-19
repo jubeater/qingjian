@@ -1,6 +1,8 @@
 //! Linux 首版按键与候选配置。
 use qingjian_platform::protocol::KeyModifiers;
-use qingjian_platform::{Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode};
+use qingjian_platform::{
+    Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode, SwitchKeys,
+};
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +27,15 @@ pub struct RouterConfig {
 
     /// 英文模式给不给英文候选（`[general] english_candidates`）。
     pub english_candidates: bool,
+
+    /// 内置英文模式总开关（`[general] english_mode`）：关掉后切换键不再切、会话固定中文。
+    pub english_mode: bool,
+
+    /// 新会话从英文模式开始（`[general] default_english`）。
+    pub default_english: bool,
+
+    /// 中英切换键（`[shortcut] switch_mode`）。
+    pub switch_mode: SwitchKeys,
 
     /// Shift 大写字母是否加入中文组句。
     pub shift_letter_compose: bool,
@@ -60,6 +71,20 @@ impl RouterConfig {
     pub fn english_candidates_in(&self, app: Option<&str>) -> bool {
         self.english_candidates && self.apps.english_candidates_on(app)
     }
+
+    /// 实际生效的切换键：英文模式关着时一个都不认。
+    pub fn switch_keys(&self) -> SwitchKeys {
+        if self.english_mode {
+            self.switch_mode
+        } else {
+            SwitchKeys::NONE
+        }
+    }
+
+    /// 新会话的初始模式。
+    pub fn starts_english(&self) -> bool {
+        self.english_mode && self.default_english
+    }
 }
 
 impl From<&Config> for RouterConfig {
@@ -76,6 +101,9 @@ impl From<&Config> for RouterConfig {
             appearance: config.general.appearance(),
             page_keys: config.general.page_keys(),
             english_candidates: config.general.english_candidates,
+            english_mode: config.general.english_mode,
+            default_english: config.general.default_english,
+            switch_mode: config.shortcut.switch_mode,
             shift_letter_compose: config.general.shift_letter.compose(),
             full_width: config.general.full_width_punctuation,
             english_full_width: config.general.english_full_width_punctuation,

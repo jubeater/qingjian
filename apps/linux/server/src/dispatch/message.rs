@@ -14,7 +14,8 @@ impl Router {
                     return None;
                 }
                 self.close_session(session);
-                self.sessions.insert(session, SessionInfo::new(app));
+                self.sessions
+                    .insert(session, SessionInfo::new(app, self.config.starts_english()));
                 None
             }
             ClientMessage::Privacy { session, private } => {

@@ -5,7 +5,8 @@ use std::time::{Duration, Instant, SystemTime};
 
 use qingjian_core::Engine;
 use qingjian_dictionary::{Dictionary, import};
-use qingjian_platform::Config;
+use qingjian_platform::protocol::{ClientMessage, PROTOCOL_VERSION, SessionId};
+use qingjian_platform::{Config, SwitchKeys};
 
 use super::CONFIG_POLL_INTERVAL;
 use crate::dispatch::{Router, RouterConfig};
@@ -71,6 +72,28 @@ fn edited_config_applies_on_next_tick() {
 }
 
 #[test]
+fn turning_english_mode_off_returns_sessions_to_chinese() {
+    let dir = temp_dir("english");
+    let mut router = watched(&dir, "[general]\ndefault_english = true\n");
+    router.handle(ClientMessage::OpenSession {
+        session: SessionId(1),
+        app: None,
+        protocol: PROTOCOL_VERSION,
+    });
+    assert!(router.sessions[&SessionId(1)].english);
+
+    write_config(
+        &dir.join("config.toml"),
+        "[general]\nenglish_mode = false\ndefault_english = true\n",
+        200,
+    );
+    poll(&mut router);
+    assert!(!router.sessions[&SessionId(1)].english);
+    assert_eq!(router.config.switch_keys(), SwitchKeys::NONE);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn broken_config_keeps_previous_settings() {
     let dir = temp_dir("broken");
     let mut router = watched(&dir, "[general]\npage_size = 6\n");
@@ -114,7 +137,6 @@ fn user_dictionary_import_applies_without_config_change() {
 fn cloud_disable_clears_suspended_candidates_and_translation_review() {
     use crate::dispatch::{composed::Composed, session::SessionInfo, translate::Translation};
     use qingjian_core::{Candidate, CandidateKind, CandidateLayout};
-    use qingjian_platform::protocol::SessionId;
     use qingjian_predict::PredictConfig;
 
     let dir = temp_dir("cloud-disable");
@@ -140,7 +162,7 @@ fn cloud_disable_clears_suspended_candidates_and_translation_review() {
         })
     };
     router.composed = composed();
-    let mut suspended = SessionInfo::new(None);
+    let mut suspended = SessionInfo::new(None, false);
     suspended.composed = composed();
     router.sessions.insert(SessionId(2), suspended);
     router.translation = Some(Translation { result: None });

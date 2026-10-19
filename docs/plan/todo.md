@@ -133,7 +133,7 @@
 - [ ] Linux Fcitx5 后续（默认面板与手动安装已实现）：native Wayland 验证、Server 自绘 / GNOME 位图、神经重排、自动启动与打包；配置同步、跨平台词库
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
   - [ ] 辅码：macOS、Linux
-  - [ ] 默认英文模式：macOS、Linux
+  - [ ] 默认英文模式：macOS
   - [ ] 按应用记住中英模式：macOS、Linux
   - [ ] 中文与英文、数字之间自动加空格：Windows、Linux
   - [ ] 横排时 ↑ / ↓ 展开成多行：Linux
