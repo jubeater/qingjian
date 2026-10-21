@@ -39,6 +39,12 @@ allow = [
 # （20 个成员先各报一次纯属噪音）。外部依赖仍照常查。
 private = { ignore = true }
 
+# rustls 的 Mozilla/CCADB 根证书数据使用此许可证，只对这两个证书数据包放行。
+exceptions = [
+    { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
+    { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+]
+
 [sources]
 # 依赖只能来自这两处。`unknown-registry` / `unknown-git` 挡的是没在这两处登记的来源。
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
