@@ -25,8 +25,10 @@ impl Engine {
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
             typed_display: None,
+            pinyin_choices: Vec::new(),
             correction: None,
             aux: None,
+            held: String::new(),
             timings: Timings {
                 parse: Duration::ZERO,
                 lookup: Duration::ZERO,
@@ -55,8 +57,10 @@ impl Engine {
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
             typed_display: None,
+            pinyin_choices: Vec::new(),
             correction: None,
             aux: None,
+            held: String::new(),
             timings: Timings {
                 parse: Duration::ZERO,
                 lookup: Duration::ZERO,
@@ -101,8 +105,10 @@ impl Engine {
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
             typed_display: None,
+            pinyin_choices: Vec::new(),
             correction: None,
             aux: None,
+            held: String::new(),
             timings: Timings {
                 parse: Duration::ZERO,
                 lookup: Duration::ZERO,
@@ -159,8 +165,10 @@ impl Engine {
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
             typed_display: None,
+            pinyin_choices: Vec::new(),
             correction: None,
             aux: None,
+            held: String::new(),
             timings: Timings {
                 parse: start.elapsed(),
                 lookup: Duration::ZERO,

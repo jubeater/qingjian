@@ -14,7 +14,8 @@ pub use qingjian_platform::{
 };
 pub use qingjian_render::Mode;
 pub use qingjian_windows_server::dispatch::{
-    CandidateSink, PanelFrame, RenderSettings, StatusEvent, StatusSink, StatusView,
+    CandidateSink, KeyHintContent, KeyHintView, PanelFrame, RenderSettings, StatusEvent,
+    StatusSink, StatusView,
 };
 pub use qingjian_windows_server::{AssemblySpec, Router, RouterConfig, assembly};
 
@@ -316,14 +317,19 @@ pub fn press_in(router: &mut Router, session: SessionId, event: KeyEvent) {
     let _ = router.handle(ClientMessage::Key { session, event });
 }
 
-/// 记录自绘候选窗收到的帧与输入状态。
+/// 记录自绘候选窗收到的帧、输入状态与键位提示。
 #[derive(Clone, Default)]
-pub struct RecordingCandidates(pub Arc<Mutex<Vec<Frame>>>, pub Arc<Mutex<Vec<Mode>>>);
+pub struct RecordingCandidates(
+    pub Arc<Mutex<Vec<Frame>>>,
+    pub Arc<Mutex<Vec<Mode>>>,
+    pub Arc<Mutex<Vec<Option<KeyHintView>>>>,
+);
 
 impl CandidateSink for RecordingCandidates {
-    fn show(&self, frame: Frame, mode: Mode, _rect: ScreenRect) {
+    fn show(&self, frame: Frame, mode: Mode, _rect: ScreenRect, key_hint: Option<KeyHintView>) {
         self.0.lock().unwrap().push(frame);
         self.1.lock().unwrap().push(mode);
+        self.2.lock().unwrap().push(key_hint);
     }
 
     fn hide(&self) {}

@@ -167,6 +167,28 @@ fn set_value_writes_strings_and_integers() {
 }
 
 #[test]
+fn per_scheme_code_rules_go_into_nested_sections() {
+    let path = std::env::temp_dir().join("qingjian-config-code-rules-test.toml");
+    std::fs::write(&path, "[general]\ncode = \"wubi86\"\n").unwrap();
+    Config::set_value(&path, "code.wubi86", "top", false).unwrap();
+    Config::set_value(&path, "code.wubi86", "auto_commit", true).unwrap();
+    Config::set_value(&path, "code.huma", "top", true).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("[code.wubi86]") && !text.contains("[code]\n"));
+    let config = Config::load(&path).unwrap();
+    assert_eq!(
+        config.code_rules("wubi86"),
+        CodeRules {
+            auto_commit: Some(true),
+            top: Some(false),
+        }
+    );
+    assert_eq!(config.code_rules("huma").top, Some(true));
+    assert_eq!(config.code_rules("zhengma"), CodeRules::default());
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
 fn set_bool_keeps_comments_and_flips_only_that_key() {
     let path = std::env::temp_dir().join("qingjian-config-set-bool-test.toml");
     std::fs::write(

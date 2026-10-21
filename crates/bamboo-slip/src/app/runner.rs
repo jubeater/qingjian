@@ -93,8 +93,9 @@ impl<A: App> Runner<A> {
         rebuild
     }
 
-    /// 窗口进出前台：光标跟着显示、熄灭。
+    /// 窗口进出前台：光标跟着显示、熄灭，应用也知道一声（见 [`App::set_active`]）。
     pub fn set_active(&mut self, active: bool) {
+        self.app.set_active(active);
         self.active = active;
         self.blink_from = Instant::now();
         self.stale = true;

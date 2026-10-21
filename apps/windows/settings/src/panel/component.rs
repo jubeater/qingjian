@@ -63,7 +63,15 @@ impl Component for Settings {
                 self.save("general", "scheme", general::SCHEMES[i].1);
             }
             Message::ShuangpinRawPreedit(on) => self.save("general", "shuangpin_raw_preedit", on),
-            Message::Wubi(on) => self.save("general", "wubi", if on { "wubi86" } else { "" }),
+            Message::Wubi(on) => self.save(
+                "general",
+                "code",
+                if on {
+                    qingjian_platform::code_schemes::WUBI86
+                } else {
+                    "off"
+                },
+            ),
             Message::Traditional(Some(i)) if i < general::TRADITIONAL.len() => {
                 self.save("general", "traditional_variant", general::TRADITIONAL[i].1);
             }

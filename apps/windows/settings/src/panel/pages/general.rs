@@ -118,7 +118,7 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
              单用五笔请把拼音方案关掉；第 5 个字母起五笔查不到东西，自动只剩拼音。\
              译词、生词记录与学习照常。",
             ToggleSwitch::new()
-                .is_on(g.wubi())
+                .is_on(g.code().as_deref() == Some(qingjian_platform::code_schemes::WUBI86))
                 .on_toggled(context.callback(Message::Wubi)),
         ),
         field(

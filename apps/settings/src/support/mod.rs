@@ -14,6 +14,8 @@ use crate::page_id::PageId;
 pub enum Feature {
     /// 输入页的辅码与码表。
     AuxCode,
+    /// 形码，以及用户目录 `schemes/` 里的形码与双拼方案。
+    Schemes,
     /// 中英文切换键。
     SwitchKeys,
     /// 切换键里的「Ctrl + Space（系统）」：改的是 Windows 的系统热键。
@@ -36,12 +38,15 @@ pub enum Feature {
     CloudRequestControls,
     /// 上屏的整句翻译后记进生词本（随释义兜底）。
     VocabularyTranslation,
+    /// 双拼键位提示：候选窗旁画键盘。
+    KeyHint,
 }
 
 impl Feature {
     #[cfg(test)]
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 18] = [
         Self::AuxCode,
+        Self::Schemes,
         Self::SwitchKeys,
         Self::SystemCtrlSpace,
         Self::DefaultEnglish,
@@ -57,6 +62,7 @@ impl Feature {
         Self::ApiUsage,
         Self::CloudRequestControls,
         Self::VocabularyTranslation,
+        Self::KeyHint,
     ];
 
     /// 当前平台显示这一项。
@@ -77,7 +83,8 @@ impl Feature {
     fn table(self) -> [Status; 3] {
         use Status::{NotApplicable as No, Planned as Todo, Supported as Yes};
         match self {
-            Self::AuxCode => [Todo, Yes, Todo],
+            Self::AuxCode => [Yes, Yes, Todo],
+            Self::Schemes => [Yes, Yes, Todo],
             // macOS 用 Caps Lock，由系统决定
             Self::SwitchKeys => [No, Yes, Yes],
             Self::SystemCtrlSpace => [No, Yes, No],
@@ -86,20 +93,21 @@ impl Feature {
             // macOS 英文模式一律半角
             Self::EnglishPunctuation => [No, Yes, Yes],
             // 要读应用里光标前的字
-            Self::AutoSpace => [Yes, Todo, Todo],
+            Self::AutoSpace => [Yes, Yes, Todo],
             // macOS 看菜单栏图标，Linux 看 Fcitx5 的托盘
             Self::StatusBar => [No, Yes, No],
             Self::HorizontalGrid => [Yes, Yes, Todo],
-            Self::ExtraPageKeys => [Todo, Yes, Todo],
+            Self::ExtraPageKeys => [Yes, Yes, Todo],
             Self::HighlightKeys => [Yes, Yes, Todo],
-            Self::TogglePunctuation => [Todo, Yes, Todo],
+            Self::TogglePunctuation => [Yes, Yes, Todo],
             // 系统的文本替换只有 macOS 有
             Self::SystemTextReplacements => [Yes, No, No],
             // Linux 已接云服务，尚未记录云服务用量
             Self::ApiUsage => [Yes, Yes, Todo],
-            Self::CloudRequestControls => [Todo, Yes, Todo],
+            Self::CloudRequestControls => [Yes, Yes, Todo],
             // Linux 还没接释义兜底
             Self::VocabularyTranslation => [Yes, Yes, Todo],
+            Self::KeyHint => [Yes, Yes, Todo],
         }
     }
 
@@ -108,6 +116,7 @@ impl Feature {
     pub fn label(self) -> &'static str {
         match self {
             Self::AuxCode => "辅码",
+            Self::Schemes => "形码与自定义方案",
             Self::SwitchKeys => "中英文切换键",
             Self::SystemCtrlSpace => "系统的 Ctrl + Space",
             Self::DefaultEnglish => "默认英文模式",
@@ -123,6 +132,7 @@ impl Feature {
             Self::ApiUsage => "云服务用量统计",
             Self::CloudRequestControls => "按需云联想与请求节奏",
             Self::VocabularyTranslation => "生词本整句翻译",
+            Self::KeyHint => "双拼键位提示",
         }
     }
 
@@ -135,6 +145,7 @@ impl Feature {
                 (PageId::Input, "触发键"),
                 (PageId::Input, "导入码表"),
             ],
+            Self::Schemes => &[(PageId::Input, "形码")],
             Self::SwitchKeys => &[(PageId::Language, "切换键")],
             Self::DefaultEnglish => &[(PageId::Language, "默认英文模式")],
             Self::RememberModePerApp => &[(PageId::Language, "按应用记住中英模式")],
@@ -150,6 +161,7 @@ impl Feature {
                 (PageId::Shortcuts, "按需 AI 联想"),
             ],
             Self::VocabularyTranslation => &[(PageId::Cloud, "生词本整句翻译")],
+            Self::KeyHint => &[(PageId::Input, "键位提示")],
             Self::SystemCtrlSpace
             | Self::EnglishPunctuation
             | Self::StatusBar

@@ -42,7 +42,8 @@ fn fuzzy_shuangpin_accepts_suang_and_consumes_only_its_keys() {
                 .find(|c| c.text == "双")
                 .unwrap()
                 .clone();
-            assert_eq!(engine.commit(&candidate), "双");
+            assert_eq!(engine.commit(&candidate), "");
+            assert_eq!(engine.held_text(), "双", "{scheme}");
             assert_eq!(engine.composition().text(), remaining, "{scheme}");
         }
     }

@@ -86,6 +86,7 @@ impl Worker {
             }
             let start = Instant::now();
             if !pending.is_empty() && self.suspension.active(start) {
+                pending.iter().for_each(|request| self.give_up(request));
                 continue;
             }
             last_sent = Some(start);
@@ -198,7 +199,15 @@ impl Worker {
                 if !self.suspension.record(&error, Instant::now(), "联想") {
                     tracing::warn!(sequence = request.sequence, %error, "联想失败");
                 }
+                self.give_up(request);
             }
+        }
+    }
+
+    /// 没问成（出错、暂停中）：翻译是用户点了在等的，回一条空结果让壳当场说失败，不必干等到超时；联想照旧不回。
+    fn give_up(&self, request: &PredictionRequest) {
+        if request.kind == PredictionKind::Translate {
+            self.reply(request.sequence, Cached::default());
         }
     }
 

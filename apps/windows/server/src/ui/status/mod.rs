@@ -243,6 +243,7 @@ impl StatusBar {
                     &view.mode,
                     self.dark.get(),
                     self.dpi.get(),
+                    view.size,
                 ),
                 _ => None,
             }

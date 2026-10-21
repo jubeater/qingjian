@@ -109,9 +109,12 @@ impl Router {
     /// 退格 / Esc / 回车 / Tab / 方向键；没在组句时都交还应用。
     fn apply_function_key(&mut self, event: &KeyEvent) -> Effect {
         if !self.composing() {
-            // 回车交给应用：文本流里是一个段落边界（macOS 壳同样记）
-            if event.virtual_key == codes::RETURN {
-                self.engine.note_passthrough('\n');
+            match event.virtual_key {
+                // 回车交给应用：文本流里是一个段落边界（macOS 壳同样记）
+                codes::RETURN => self.engine.note_passthrough('\n'),
+                // 删的是应用里刚上屏的字：自动空格据此知道光标前还是不是那个字
+                codes::BACK => self.engine.note_backspace(),
+                _ => {}
             }
             return Effect::Passthrough;
         }
@@ -275,13 +278,12 @@ impl Router {
             if c.is_ascii_uppercase() && self.engine.in_aux() {
                 self.engine.clear_aux();
             }
-            self.engine.push(c);
-            return Effect::Changed(None);
+            return Effect::Changed(self.push_letter(c));
         }
         if c.is_ascii_uppercase() {
             let raw = self.composing().then(|| self.engine.take_raw());
-            self.engine.note_passthrough(c);
-            return with_prefix(raw, Effect::Passthrough, c);
+            let effect = self.pass_through(c);
+            return with_prefix(raw, effect, c);
         }
         if !self.composing() {
             return self.apply_punctuation(c, event);
@@ -289,9 +291,23 @@ impl Router {
         self.apply_printable(c, event)
     }
 
+    /// 字母进缓冲区，带上形码的两条规则：满码再敲字母先把高亮候选顶上屏，敲满唯一的全码直接上屏。
+    /// 返回这一键上屏的文本（两条都触发时是两段连起来）。
+    fn push_letter(&mut self, c: char) -> Option<String> {
+        let topped = self.engine.code_tops(c).then(|| self.commit_highlighted());
+        self.engine.push(c);
+        let committed: String = topped
+            .into_iter()
+            .chain(self.engine.commit_unique_code())
+            .collect();
+        (!committed.is_empty()).then_some(committed)
+    }
+
     /// 当前模式开着全角就让 Core 转（数字后的 `.` 与小键盘的键保持半角）；转不了的原样交给应用并告知 Core。
     fn apply_punctuation(&mut self, c: char, event: &KeyEvent) -> Effect {
         let english = event.modifiers.caps || event.modifiers.english_mode;
+        // 数字与字母的自动空格要在 punctuate 之前判：它转不了时清掉上屏记录，之后就不知道上文了
+        let lead = c.is_ascii_alphanumeric() && self.engine.auto_space_before(&c.to_string());
         if !codes::is_keypad(event.virtual_key)
             && self.full_width_for(english)
             && let Some(text) = self.engine.punctuate(c)
@@ -299,7 +315,22 @@ impl Router {
             return Effect::Changed(Some(text.to_owned()));
         }
         self.engine.note_passthrough(c);
-        Effect::Passthrough
+        if lead {
+            Effect::Changed(Some(format!(" {c}")))
+        } else {
+            Effect::Passthrough
+        }
+    }
+
+    /// 字符原样交给应用；开了自动空格且与上文是中西文交界时改由我们连同空格一起插入（macOS 壳的 `pass_through` 同理）。
+    fn pass_through(&mut self, c: char) -> Effect {
+        let lead = self.engine.auto_space_before(&c.to_string());
+        self.engine.note_passthrough(c);
+        if lead {
+            Effect::Changed(Some(format!(" {c}")))
+        } else {
+            Effect::Passthrough
+        }
     }
 
     /// 英文模式。开着候选：字母进缓冲区，选词与中文模式一样（空格选高亮、数字选当前页第 N 个、翻页键翻页），
@@ -311,8 +342,9 @@ impl Router {
         if !candidates {
             let raw = composing.then(|| self.engine.take_raw());
             let effect = if c.is_ascii_alphabetic() {
+                let lead = self.engine.auto_space_before(&c.to_string());
                 self.engine.note_passthrough(c);
-                Effect::Changed(Some(c.to_string()))
+                Effect::Changed(Some(if lead { format!(" {c}") } else { c.to_string() }))
             } else {
                 self.apply_punctuation(c, event)
             };
@@ -417,15 +449,17 @@ impl Router {
         // 表达式 / 问字模式下的其他字符不进缓冲区（与 macOS 壳一致），辅码态里敲标点同理（码段随之清空）；
         // 普通拼音组句里的标点也一样——会转全角的（`,` `.` `?` `!` 引号、括号这些）先把高亮候选上屏再补标点
         //（`nihao,` 一气打完「你好，」），翻页键已在前面上方拦走，数字后的 `.` 是否保持半角由 Core 判断；
-        // 这条上屏行为由 `[general] punct_commits` 控制（缺省关：标点进英文直输段）。
+        // 这条上屏行为由 `[general] punct_commits` 控制（缺省关：标点进英文直输段），单用形码时总是上屏（五笔的习惯）。
         // 不会转的符号（`-` `/` `@`）仍进英文直输段；`'` 是隔音符，任何模式都进缓冲区。
         if (c != '\''
             && (expression
                 || self.engine.question_mode()
-                || (self.config.punct_commits && punctuation::converts(c))))
+                || ((self.config.punct_commits || self.engine.composing_code())
+                    && punctuation::converts(c))))
             || self.engine.in_aux()
         {
-            let committed = self.commit_highlighted();
+            // 高亮候选没吃完拼音时它留在组句里：连同前面留着的先交给应用，标点才接得在后面
+            let committed = self.commit_highlighted() + &self.engine.take_held();
             let effect = self.apply_punctuation(c, event);
             return with_prefix(Some(committed), effect, c);
         }
@@ -441,8 +475,12 @@ impl Router {
         (digit <= page_size && index < self.candidate_count()).then_some(index)
     }
 
-    /// 上屏高亮候选；没有候选时缓冲原样上屏。
+    /// 上屏高亮候选；没有候选时缓冲原样上屏，形码空码（编码查不到词）时清掉编码、什么都不上屏。
     fn commit_highlighted(&mut self) -> String {
+        if self.engine.composing_code() && self.candidate_count() == 0 {
+            self.engine.clear();
+            return String::new();
+        }
         match self.commit_index(self.highlight) {
             Some(text) => text,
             None => self.engine.take_raw(),

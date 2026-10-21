@@ -200,6 +200,7 @@ fn main() {
         bundled_dicts_dir: bundled_dicts_dir.clone(),
         dictionaries: config.dictionaries.clone(),
         bundled_codes_dir: bundled_codes_dir.clone(),
+        bundled_schemes_dir: dispatch::find_bundled_schemes(&root),
         aux_code: config.aux_code.clone(),
         levels_dir: Some(root.join("assets/levels")),
         user_dir: user_dir(),
@@ -218,7 +219,7 @@ fn main() {
     if let Err(error) = engine.set_custom_phrases(config.custom_phrases.clone()) {
         tracing::warn!(%error, "自定义短语配置未应用");
     }
-    // 拼音侧与形码侧在 `configure_code_table` 里一起装配（双拼 / 注音 / 混输都在那）
+    // 拼音侧与形码侧在 `configure_schemes` 里一起装配（双拼 / 注音 / 混输都在那）
     engine.set_traditional(config.general.traditional());
     engine.set_learning(config.general.learning);
     engine.set_mode_keys(config.shortcut.mode);
@@ -232,7 +233,9 @@ fn main() {
     engine.set_symbol_limit(usize::from(config.general.symbols.get()));
     engine.set_english_in_chinese(config.general.english_in_chinese);
     engine.set_shift_letter_compose(config.general.shift_letter.compose());
+    engine.set_auto_space(config.general.auto_space);
     engine.set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
+    engine.set_hold_selections(config.general.hold_selections);
     engine.log_session(env!("CARGO_PKG_VERSION"), "windows");
     let usage_path = user_dir().map(|dir| dir.join(qingjian_predict::API_USAGE_FILE));
     dispatch::attach_cloud(&mut engine, &config.predict, usage_path);
@@ -240,7 +243,7 @@ fn main() {
     let mut router = Router::new(engine, router_config.clone());
     let model_path = dispatch::find_model(user_dir().as_deref(), &root);
     router.configure_local_model(model_path.clone(), &config.model);
-    router.configure_code_table(dispatch::find_code_table(user_dir().as_deref(), &root));
+    router.configure_schemes(&config, dispatch::find_bundled_schemes(&root));
     if let Some(path) = config_path() {
         let user = user_dir();
         router.watch_config(
@@ -251,6 +254,7 @@ fn main() {
                 user_root: user.clone(),
                 bundled_dicts: bundled_dicts_dir,
                 bundled_codes: bundled_codes_dir,
+                bundled_schemes: dispatch::find_bundled_schemes(&root),
                 user_dicts: assembly::user_dicts_dir(user.as_deref()),
                 user_codes: assembly::user_codes_dir(user.as_deref()),
             },
@@ -265,7 +269,7 @@ fn main() {
         highlight_keys = router_config.highlight_keys.key(),
         layout = router_config.layout.key(),
         appearance = router_config.appearance.key(),
-        scheme = %if config.general.scheme_label().is_empty() { "全拼".to_owned() } else { config.general.scheme_label() },
+        scheme = %router.scheme_name(),
         fuzzy = config.fuzzy.any(),
         cloud = config.predict.enabled,
         model = model_path.as_deref().map(|p| p.display().to_string()).unwrap_or_default(),

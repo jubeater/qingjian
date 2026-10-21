@@ -49,9 +49,14 @@ impl QingjianInputController {
                 self.render(client);
                 return true;
             }
+            // 辅码态里 Esc 只清码段，拼音留着
             host::with(|h| {
-                h.engine.clear();
-                h.cancel_prediction();
+                if h.engine.in_aux() {
+                    h.engine.clear_aux();
+                } else {
+                    h.engine.clear();
+                    h.cancel_prediction();
+                }
             });
             self.refresh(client);
         } else if selector == sel!(insertTab:) {

@@ -2,12 +2,14 @@ mod appearance;
 mod apps;
 mod aux_code;
 mod candidate_renderer;
+mod code_rules;
 mod dictionaries;
 mod emoji_count;
 mod font_size;
 mod general;
 mod highlight_keys;
 mod key_combo;
+mod key_hint_mode;
 mod layout_mode;
 mod legacy_traditional;
 mod log_level;
@@ -24,6 +26,7 @@ mod status_bar;
 mod switch_key;
 mod update;
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use qingjian_core::FuzzyRules;
@@ -40,15 +43,17 @@ pub use apps::{
 };
 pub use aux_code::AuxCodeConfig;
 pub use candidate_renderer::CandidateRenderer;
+pub use code_rules::CodeRules;
 pub use dictionaries::{DEFAULT_DOMAINS, DictionariesConfig};
 pub use emoji_count::EmojiCount;
 pub use font_size::FontSize;
 pub use general::{
-    DEFAULT_PAGE_KEYS, DEFAULT_THEME, GeneralConfig, LEARNING_LANGUAGE_OFF, MAX_PAGE_SIZE,
-    PAGE_KEY_OPTIONS,
+    DEFAULT_KEY_HINT_OPACITY, DEFAULT_PAGE_KEYS, DEFAULT_THEME, GeneralConfig,
+    LEARNING_LANGUAGE_OFF, MAX_PAGE_SIZE, PAGE_KEY_OPTIONS,
 };
 pub use highlight_keys::HighlightKeys;
 pub use key_combo::KeyCombo;
+pub use key_hint_mode::KeyHintMode;
 pub use layout_mode::LayoutMode;
 pub use legacy_traditional::LegacyTraditional;
 pub use log_level::LogLevel;
@@ -102,6 +107,9 @@ pub struct Config {
 
     /// 检查更新。
     pub update: UpdateConfig,
+
+    /// 各形码方案的按键规则（`[code.<id>]`），按方案 id；没写的方案按它自己的 `scheme.toml`。
+    pub code: BTreeMap<String, CodeRules>,
 }
 
 /// 模板的 `[apps]` 一节（Linux）：应用按 fcitx5 认到的名字（X11 是 WM_CLASS，Wayland 是 app_id）。
@@ -295,15 +303,17 @@ aux_code_show = false
 # 码段删空后是否留在辅码状态：true 删空后 ; 仍在、候选全部回来，再按一次退格才退出辅码；false 删空即回拼音状态
 aux_code_keep_empty = true
 # 拼音方案：留空或 pinyin 为全拼 / xiaohe 小鹤双拼 / ziranma 自然码 / microsoft 微软双拼 / sogou 搜狗双拼 / abc 智能ABC / xiaolang 小浪双拼 / shoudao 首道双拼 / jiajia 拼音加加 / ziguang 紫光双拼 /
-# zhuyin 大千注音 / none 关（只用形码，见下面的 wubi）。
+# zhuyin 大千注音 / none 关（只用形码，见下面的 code）。
 # 双拼与注音下 v / u / i 都是按键，表达式模式没有入口，问字只能靠 question_mark 打开后用 ? 进；微软、搜狗、紫光方案的 ; 键是 ing
 scheme = ""
 # 双拼方案下 preedit 显示原始按键（如 ljse）还是展开成全拼（lan'se）；缺省 false（展开成全拼）
 shuangpin_raw_preedit = false
-# 五笔（86 版形码）：留空为关，wubi86 为开。**与上面的拼音方案同时开着就是混输**——
-# 两边都出候选，编码打全的五笔词在前、其次拼音（打不出的字直接打拼音）；候选旁的译文、生词记录与学习照常。
-# 只用五笔的话把 scheme 写成 none；第 5 个字母起五笔已经查不到东西，自动只剩拼音。
-wubi = ""
+# 一段拼音分几次选完时，先选的词留在输入框里、整段选完才一起上屏，退格先撤回最后一次选择；false 为选了就上屏
+hold_selections = true
+# 形码方案：留空或 off 为关，wubi86 为五笔（86 版），也可以写用户数据目录 schemes/ 下自己放的方案目录名。
+# **与上面的拼音方案同时开着就是混输**——两边都出候选，编码打全的形码词在前、其次拼音（打不出的字直接打拼音）；
+# 候选旁的译文、生词记录与学习照常。只用形码的话把 scheme 写成 none，这时四码唯一自动上屏、满码再敲字母顶字。
+code = ""
 # 日志级别：info 缺省 / debug 详细（会记录敲的拼音与上屏的文字，配合作者排查问题时再开）。日志在 ~/Library/Logs/Qingjian/
 log_level = "info"
 # 输入日志：每次上屏记一行到数据目录的 input-log.jsonl（敲的键、看到的候选、选了什么），只写在这台电脑上，不上传；
@@ -413,6 +423,8 @@ enabled = false
 # 记住的屏幕位置（物理像素，拖动后自动写入）；留空则首次出现在屏幕右下角
 # x = 0
 # y = 0
+# 大小（百分比，60–150）；不跟候选字号走
+size = 100
 
 [update]
 # 检查更新：每天向官网（qingjian.app）读一次版本索引，有新版在菜单与设置的「关于」页提示；请求不带任何标识，不自动下载安装
@@ -423,6 +435,11 @@ channel = "stable"
 );
 
 impl Config {
+    /// 用户给形码方案 `id` 改的按键规则；没改过时全是 `None`。
+    pub fn code_rules(&self, id: &str) -> CodeRules {
+        self.code.get(id).copied().unwrap_or_default()
+    }
+
     /// 保存自定义短语列表，冲突时不修改文件。
     pub fn set_custom_phrases(
         path: &Path,
@@ -566,15 +583,11 @@ impl Config {
             path: path.to_owned(),
             source: Box::new(source),
         })?;
-        // 分节不存在时先建成标准表，否则 toml_edit 会写成顶层的行内表 `predict = { enabled = true }`
-        if !document.get(section).is_some_and(|item| item.is_table()) {
-            document[section] = toml_edit::table();
-        }
         // 旧写法（外观写在 theme 里）要在改键之前认出来：写的正是 theme 时，新值会把它盖掉
         let legacy = (section == "general" && matches!(key, "appearance" | "theme"))
             .then(|| legacy_appearance(&document))
             .flatten();
-        document[section][key] = toml_edit::value(value);
+        section_table(&mut document, section)[key] = toml_edit::value(value);
         if let Some(old) = legacy {
             migrate_legacy_theme(&mut document, old);
         }
@@ -604,14 +617,11 @@ impl Config {
             path: path.to_owned(),
             source: Box::new(source),
         })?;
-        if !document.get(section).is_some_and(|item| item.is_table()) {
-            document[section] = toml_edit::table();
-        }
         let mut array = toml_edit::Array::new();
         for value in values {
             array.push(value.as_ref());
         }
-        document[section][key] = toml_edit::value(array);
+        section_table(&mut document, section)[key] = toml_edit::value(array);
         write_file(path, &document.to_string())
     }
 
@@ -666,6 +676,23 @@ fn migrate_legacy_theme(document: &mut DocumentMut, old: Appearance) {
 }
 
 /// 原子写配置文件；数据目录还没有就先建（新账户第一次打开设置时输入法可能还没跑过）。
+/// 取（没有就建）分节 `section`，`code.wubi86` 这样带点的是嵌套分节。
+/// 一律建成标准表：否则 toml_edit 会写成顶层的行内表 `predict = { enabled = true }`；
+/// 嵌套时外层是隐式的，文件里只出现 `[code.wubi86]`、不多出一个空的 `[code]`。
+fn section_table<'a>(document: &'a mut DocumentMut, section: &str) -> &'a mut toml_edit::Table {
+    let mut table = document.as_table_mut();
+    let mut parts = section.split('.').peekable();
+    while let Some(part) = parts.next() {
+        if !table.get(part).is_some_and(|item| item.is_table()) {
+            let mut child = toml_edit::Table::new();
+            child.set_implicit(parts.peek().is_some());
+            table.insert(part, toml_edit::Item::Table(child));
+        }
+        table = table[part].as_table_mut().expect("刚确认过是表");
+    }
+    table
+}
+
 fn write_file(path: &Path, text: &str) -> Result<(), ConfigError> {
     let write = || {
         if let Some(dir) = path.parent() {

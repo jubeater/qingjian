@@ -59,7 +59,7 @@ impl QingjianInputController {
         // 先发联想再画：发出去就留好云端槽位，画出来的第一帧本地候选就已经在最终位置
         if !marked.is_empty() {
             let candidates = host::with(|h| h.session.layout.local().to_vec()).unwrap_or_default();
-            self.request_prediction(client, &candidates);
+            self.request_prediction(client, &candidates, false);
         }
         self.render(client);
     }
@@ -92,10 +92,16 @@ impl QingjianInputController {
     }
 
     /// 发一次联想请求。Secure Input 里绝不发；没接联想器时是空操作。
+    /// `manual` 是组句中按了按需联想键：不等停键，`[predict] automatic` 关着也发。
     ///
     /// 读上下文要等应用回话，这段时间 IMK 可能把 `deactivateServer:` 之类的回调插进来，
     /// 所以分两次借 Host：先拿策略、放开借用去读、再借回来发请求。
-    pub(super) fn request_prediction(&self, client: TextClient<'_>, candidates: &[Candidate]) {
+    pub(super) fn request_prediction(
+        &self,
+        client: TextClient<'_>,
+        candidates: &[Candidate],
+        manual: bool,
+    ) {
         let policy = host::with(|h| {
             if !h.engine.prediction_enabled() {
                 return None;
@@ -118,8 +124,13 @@ impl QingjianInputController {
                 pinyin = h.engine.composition().scope(),
                 "联想请求"
             );
-            match h.engine.request_prediction(surrounding, candidates) {
-                Some(_) => h.await_prediction(),
+            let sequence = if manual {
+                h.engine.request_manual_prediction(surrounding, candidates)
+            } else {
+                h.engine.request_prediction(surrounding, candidates)
+            };
+            match sequence {
+                Some(sequence) => h.await_prediction(manual.then_some(sequence)),
                 None => h.cancel_prediction(),
             }
         });
@@ -225,22 +236,32 @@ impl QingjianInputController {
         true
     }
 
+    /// 这个字符是不是翻页键：-1 上一页、1 下一页。先认主翻页键，再认勾上的额外翻页键（`[shortcut] extra_page_keys`），与 Windows 一致。
+    pub(super) fn page_step(c: char) -> Option<isize> {
+        host::with(|h| {
+            if c == h.page_keys.0 {
+                Some(-1)
+            } else if c == h.page_keys.1 {
+                Some(1)
+            } else {
+                h.extra_page_keys.step(c)
+            }
+        })
+        .flatten()
+    }
+
     /// 翻页键：翻得动就翻页并吃键，返回 `true`。`-` / `=` 在**没有上一页 / 下一页**时返回 `false`，
     /// 由调用方按普通字符处理 —— 没有上一页时 `-` 就是 `-`（见 `docs/user/getting-started/keys.md`
     /// 的 `[general] page_keys`）。`fall_through` 为假时（问字模式里按键是问题内容）翻不动也吃键；
-    /// 别的翻页键（`[` `]` `,` `.`）一律吃键 —— 落字会往文档里插标点。非翻页键一律返回 `false`。
+    /// 别的翻页键（`[` `]` `,` `.`）一律吃键；`step` 是 [`Self::page_step`] 的结果，`None` 时不是翻页键 —— 落字会往文档里插标点。非翻页键一律返回 `false`。
     pub(super) fn page_key(
         &self,
         c: char,
-        page_keys: (char, char),
+        step: Option<isize>,
         fall_through: bool,
         client: TextClient<'_>,
     ) -> bool {
-        let step = if c == page_keys.0 {
-            -1
-        } else if c == page_keys.1 {
-            1
-        } else {
+        let Some(step) = step else {
             return false;
         };
         // 矩阵展开着时翻页键翻的是整屏，能不能翻交给 `turn_page` 试，`-` / `=` 不在这种情形下落字

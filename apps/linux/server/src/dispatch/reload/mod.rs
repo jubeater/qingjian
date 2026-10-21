@@ -87,6 +87,8 @@ impl Router {
         self.engine.set_shuangpin(config.general.shuangpin());
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
+        self.engine
+            .set_hold_selections(config.general.hold_selections);
         self.engine.set_zhuyin_mode(config.general.is_zhuyin());
         self.engine
             .set_shift_letter_compose(config.general.shift_letter.compose());

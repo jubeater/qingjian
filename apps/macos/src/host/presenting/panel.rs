@@ -38,13 +38,15 @@ impl Host {
             .iter()
             .map(|cell| match cell.candidate() {
                 Some(candidate) => {
-                    let mut row = Row::from_candidate(0, candidate, self.translation_pos);
+                    let mut row =
+                        Row::from_candidate(0, candidate, self.translation_pos, self.aux_code_show);
                     row.index = String::new();
                     row
                 }
                 None => Row {
                     index: String::new(),
                     text: String::new(),
+                    code: None,
                     annotation: Vec::new(),
                     cloud: false,
                 },
@@ -63,6 +65,7 @@ impl Host {
             status: None,
             mode: self.input_mode(),
             panel: Some(tabs),
+            keyboard: None,
         };
         self.window.show(frame, self.anchor);
     }

@@ -14,9 +14,11 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 `AuxCodeLookup::code_with_prefix` 一个方法：候选词逐个问「有没有以当前码段开头的码」。导入 `import_aux_code_table`
 解析 Rime `.dict.yaml` 的 `columns`（缺省 text / code / weight）与 `import_tables`（相对主文件目录合表），
 「有词无码」与非法码进统计返回、不静默跳过；一个可用条目都没有时报 `NoCodeEntries`。
+`WordRules`（导出为 `AuxWordRules`）是辅码方案的词码规则，`AuxCodeTable::with_word_rules` 挂上、不落盘：表里没有的多字词按词长挑公式（Rime `encoder` 写法，`A`–`T` / `a`–`t` 正数、`U`–`Z` / `u`–`z` 倒数，最长那条也管更长的词）从单字码拼，
+字有多码时按组合出多条（上限 16）；所以 `AuxCodeLookup` 返回 `Cow`，推出来的码是新串。
 
 `CodeTable` 是形码码表（五笔），与词库并列的另一类查表：键是编码本身（`ggll`），不是拼音音节序列，
-格式 `词\t编码\t词频`（`assets/wubi/wubi86.tsv`，8.9 万条），按 `(编码, 词频降序)` 排好、`lookup` 二分定位前缀区间。
+格式 `词\t编码\t词频`（随包五笔 `assets/schemes/wubi86/table.tsv`，8.9 万条），按 `(编码, 词频降序)` 排好、`lookup` 二分定位前缀区间。
 编码打全的词（`exact`）排在同前缀的更长编码词前面，这就是一级 / 二级简码的取法，不需要另做简码表。
 与词库的一处关键差别：码表没有 `.qj` 容器，只读 TSV。
 
@@ -24,6 +26,13 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 
 `Engine::set_emoji_limit` / `set_kaomoji_limit` / `set_symbol_limit` 控制单次查询插入的 emoji、颜文字、符号数，各自 0–3（缺省 3 / 1 / 1）、0 关闭、越界值按 3 处理；每词 emoji 与符号最多两个、颜文字一个，普通候选相对顺序不变。三端读 `[general] emoji` / `kaomoji` / `symbols`（`qingjian_platform::EmojiCount`，旧配置 emoji 的 `true` / `false` 读成 3 / 0），CLI 用 `--emoji-limit <0..3>`。
 `with_emoji` 带上 CLDR 表时用 `emoji::is_emoji`（Unicode `Emoji` 属性，BMP 码位表取自 emoji-data.txt 15.0）筛掉 `≈` `¥` `«` 这类普通符号，并上 `crates/qingjian-core/data/emoji.tsv` 的口语叫法，同时启用同目录编进程序的 `kaomoji.tsv`、`symbols.tsv`（一行一条 `词\t条目`），以及 `words.tsv`（这些词里词库没有的，带读音，排在附加词库之后、用户词之前一起查）。符号表的中文词只收两个字以上的（有测试守着）。
+`emoji::skin_tone_variants` 给面板里能接肤色的 emoji 列五档（修饰符接在第一个字符后、去掉紧跟的 FE0F；序列里有两个以上能接肤色的字符不给），`Emoji_Modifier_Base` 码位表取自 emoji-data.txt 15.1。面板目录本身仍只收不带肤色的那一条。
+`email::email_completions` 给手机端「用户名@」之后列常见邮箱域名（`email/mod.rs` 的 `DOMAINS`，12 个），按 `@` 后已敲的前缀过滤、不分大小写，`insert` 是去掉已敲部分的余下那截；用户名只认 ASCII 字母数字与 `._-+%`，前面可以紧挨汉字。
+`calculation::calculation_completions` 给手机端「刚上屏了一道算式」时的结果候选：光标前末尾一段由数字、`+ - * / × ÷ ^ ( ) .` 组成、前面不紧挨 ASCII 字母，至少一个运算符夹在两个数之间就交 `shortcut::evaluate` 算；末尾带 `=` 只给结果，否则给「换成结果」（`replace` 是要先删掉的字符数）与「补上 =结果」两条。只用 `-` 或只用 `/` 连两次以上的（日期、电话）和带前导零的数（区号）不算。全拼出了「日期 / 时间 / 星期」（前 `KEYWORD_SCAN` 个词，emoji 不算）时 `insert_keyword_shortcuts` 把 `rq` / `sj` / `xq` 那组写法插在这个词后面、它的 emoji 之前；九宫格的数字串不认 `rq`，拼音列把字母都定下来（`r'q`）才走 `insert_shortcuts`。
+面板「常用」按用户自己用的排：`panel::common_items(group, uses)` 把用过的（次数多的在前，同次数近的在前）提到内置常用表前面，只提一格放得下的（`NARROW_EMS`，`.com`、颜文字不提），带肤色的 emoji 不在目录里也算；次数由 `qingjian_learning::PanelUsage` 记在 `panel-usage.tsv`（`条目\t次数\t最后 Unix 秒`，最多 300 条，每用一次整个重写）。Android 壳直接读写 `PanelUsage`；桌面三端由 Engine 经 `PanelHistory` trait 注入（`with_panel_history`，`PanelUsage` 实现，缺省 `NoPanelHistory`）：`SymbolPanel` 打开时用它重排符号组与表情组的「常用」，面板开着时 `commit` 的条目记一次（私密输入不记）。
+`sentence::text_pieces` 把任意文本切成可点选的小块（剪贴板「拆词」），**全部拼起来正好是原文**：汉字段按 `segment_text` 切词（模型一个词都不认识就一字一块）；空白也是块（一串空格制表符一块、换行单独一块）；不带空白的 ASCII 串里有 `/ . @ :` 且有字母的（链接、邮箱）去掉首尾括号后整块，数字段之间夹 `- . , : / +` 的算一个数（电话、日期、时间、千分位，可带开头的 `+`），其余字母数字一块、标点一个一块，连着的同一运算符（`//` `==`）合一块。
+`code::looks_like_code` 认出像代码的文字（至少两行，有缩进或括号分号成堆，剪贴板等宽显示用），`code::highlight` 粗切高亮片段（关键字 / 字符串 / 注释 / 数字，字节范围）：不认语言，`//` 与行首 `#` 与 `-- ` 行注释、`/* */` 块注释，三种引号的字符串（单双引号不跨行、找不到收尾就不算，挡住 Rust 生命周期与英文缩写），数字不能紧跟标识符，关键字取常见语言的并集。
+日语罗马音（`japanese/`，目前只给 Android 测试用）：`to_hiragana` 最长匹配转平假名（同辅音连打 → っ、`n` 后接辅音 → ん、`-` → ー，没拼完的罗马音留在末尾），`RomajiComposer` 出候选（汉字词、平假名、片假名、边敲边出的汉字词、原样罗马音）。汉字只查 `words.rs` 里约 130 条手写常用词，正式的词典与转换以后再做，那时删掉这张表。
 符号面板在 `panel/`：`SymbolPanel` 管分组与分类切换，`Engine::open_symbol_panel` 拿当前前 12 个候选词查 `keywords.tsv`、emoji 表与内置符号 / 颜文字表当搜索结果；
 条目是 `Emoji` / `Kaomoji` / `Symbol` 种类、`reading` 为中文名的候选，上屏走 `commit`（没有音节，吃掉整段）并关掉面板。格子移动复用 `Grid`。
 macOS 面板一律系统绘制（青简渲染器还没有面板），`candidates/view/panel.rs`；开着时云端词与模型重排不往格子里写。
@@ -35,7 +44,7 @@ macOS 面板一律系统绘制（青简渲染器还没有面板），`candidates
 CandidateLayout 保持 `set_cloud` 的首页末尾布局与本地首项；`set_cloud_first` 为显式请求提供模型顺序置顶并合并同文普通候选。自定义短语固定位置保留；`cloud_first()` 供异步本地重排重建布局时沿用当前模式。自动入口及默认配置的 slots 仍指首页末尾。
 
 模块：`composition`（缓冲区与光标；中文模式下 Shift+字母按小写进 `buffer` 参与匹配、大写记在 `shifted`，`typed_text` 还原后用于原样上屏）/ `parser` / `correction`（拼写纠错：整段一处编辑的候选纠正 + `typo` 音节级敲错变体表，后者进整句词图当带代价的边）/
-`candidate` / `ranking` / `shortcut` / `sentence` / `fuzzy` / `shuangpin`（双拼：九套方案键位表、键 → 全拼解码与消耗换算）/ `zhuyin`（大千注音：键 → 注音符号 → 拼音，`[general] zhuyin` 开关，声调只判音节完整不进查询）/ `emoji` /
+`candidate` / `ranking` / `shortcut` / `sentence` / `fuzzy` / `shuangpin`（双拼：`Layout` 是键位表 + 键 → 全拼解码与消耗换算，九套内置方案的常量表在 `table.rs`、`Scheme::layout` 取出，用户方案由平台层读 `scheme.toml` 拼成 `Layout`；`Layout::check` 报写错的键与打不出来的音节——按全部两键组合实际解出哪些音节算，不是按能不能编码；`key_hint::KeyHint` 按 `Layout` 画键位提示，用户方案也画自己的键）/ `root_chart`（86 五笔字根图，字形表 `assets/schemes/wubi86/roots86-glyphs.tsv` 编进 Core，`Engine::root_chart` 只在挂着 86 五笔时给，别的形码方案不画）/ `zhuyin`（大千注音：键 → 注音符号 → 拼音，`[general] zhuyin` 开关；声调判音节完整，不进查询、只进排序：`zhuyin::tone` 按单字声调表 `data/tones.tsv` 给每个候选算声调代价——字的首读音 0、次要读音或表里没有 1、对不上 16，多字词非首字的轻声不计——排序键里排在「末音节完整」之后、「同输入串选择次数」之前，全拼 / 双拼恒为 0；整句词图同样用它：格子选词按 `sentence::TONE_PENALTY`（每点 ln 2）打折、路径得分扣同样的分，格子缓存键带上声调（`SpanCache::toned_key`），只在要转的音节正是当前注音输入解出的那串时才给声调，纠错与英文尾段换过切分的不给）/ `emoji` /
 `english`（英文模式候选）/ `traditional`（繁体输出：`[general] traditional_variant` 四选一，`off` / `taiwan` / `hongkong` / `standard` 对应 OpenCC 的 s2tw / s2hk / s2t，都只换字形；旧键 `traditional = true` 读成 taiwan，开发版在旧键里写过的字符串（`traditional = "off"`）按同一套写法读。新写法换键名是为了退回旧版本时旧版只认布尔、不会整个配置解析失败，字典由 `ferrous-opencc` 在编译期编进产物、运行时不读外部文件）/ `engine`（`query::EnglishTail`：句末英文词并入整句，`woxiangxuehaorust` → 我想学好rust，尾段也像拼音时按分数与拼音读法比）。
 辅码（`engine/aux_code.rs`）：`Engine.aux_code: Option<String>` 是码段（`None` 拼音态，`Some("")` 刚触发或删空停在辅码态——`Engine.aux_keep_empty`，配置 `[general] aux_code_keep_empty` 缺省开），
 不进 `Composition`；`aux_trigger`（配的触发键 + 光标在段尾 + 作用域能完整切分 + 双拼韵母键优先）、`enter_aux`、
@@ -47,11 +56,16 @@ CandidateLayout 保持 `set_cloud` 的首页末尾布局与本地首项；`set_c
 
 双拼 `Scheme::syllable` 优先解出键位表里的合法音节；解不出且该韵母键含 `v` 时，j / q / x / y + ü 规范化为 ju / qu / xu / yu。只补此前无效的组合，不覆盖微软 `jv` → jue 等既有解码。
 
-形码（五笔）在 `engine::query::code`。`Engine` 上有两个开关：`set_code_table`（码表）与 `set_phonetic`（拼音侧参不参与），
+形码在 `engine::query::code`。`Engine` 上有两个开关：`set_code_scheme`（`CodeScheme` = 码表 + 按键规则 + 日志键）与 `set_phonetic`（拼音侧参不参与），
 在 `query_inner` 进切分之前按这两个分派——只有拼音 / 只有形码（`query_code`）/ **两边都开（`query_mixed`，混输）**。
 编码按前缀查表，`CandidateKind::Code` 的候选 `syllables` 为空、上屏吃掉整段作用域（`whole_scope`）。
 混输是「拼音那条 Query 前面插上形码候选」：拼音读不出来时（`ggll`）整个按形码走，两边都空才算错；
-按文本去重，编码打全的形码词在前、拼音居中、只命中前缀的形码词垫后（一律形码在前的话 `kai` 的首选会变成编码 `kaik` 的词）；混输下模式键同双拼换成大写，四码以内不做拼写纠错，且五笔码最长 4 位、第 5 个字母起自然只剩拼音。
+按文本去重，编码打全的形码词在前、拼音居中、只命中前缀的形码词垫后（一律形码在前的话 `kai` 的首选会变成编码 `kaik` 的词）；混输下模式键同双拼换成大写，满码长度（`CodeScheme::code_length`，缺省取 `CodeTable::full_code_len` 即最常见的编码长度，五笔是 4；极点码表里有条写错的 5 码 `TF卡 ttfhh`，取最长会把满码拖成 5）以内不做拼写纠错，超出码长自然只剩拼音。
+只用形码时还有两条按键规则（`engine/code_keys.rs`，混输下都不生效）：`code_tops(c)` 判断满码再敲字母要不要先顶字，由壳上屏**高亮**候选再收这个字母；
+`commit_unique_code()` 在壳每收一个字母后调，全码满码且码表里只有一个词时 Core 自己按首选上屏（走完整 `query` 拿出 Core 的那份候选，繁体输出照样对）。
+`composing_code()` 告诉壳「单用形码、缓冲区是一段编码」：壳据此让会转全角的标点总是先上屏高亮候选（不看 `punct_commits`），
+编码查不到词（空码）时 `commit_highlighted` 清掉编码而不是原样上屏字母（回车仍原样上屏）。
+码表里编码不全是字母的行在 `CodeTable::parse` 时跳过（形码查询只收小写字母）。
 拼音那套在纯形码下全部不适用，靠 `modes()` 返回 `ModeKeys::LETTERLESS` 与 `active_correction` 直接返回 `None` 关掉；
 译词标注、生词记录、输入日志、用户选择学习与个人 n-gram 仍照常工作。
 `Engine` 是对外唯一门面，`Translator` / `Learner` trait 在 `engine` 模块；词库是「主词库 + 附加词库（`set_extra_dictionaries`）+ 用户词」的列表。繁体输出是 `Traditional`（`crate::traditional`）：`Engine::query` 出口把候选换成繁体并记下「繁体 → 简体」，云端联想词与整句在 `poll_prediction` 那条路上走 `convert_remember` 单独转，`commit` / `annotate` / `forget` / `accept_prediction` 按这张表还原成简体，表在组句边界 `forget` 清；所以词库、词频、用户词、输入日志一律是简体。`LastCommit::chars` 按上屏的繁体算。
@@ -76,6 +90,10 @@ CandidateLayout 保持 `set_cloud` 的首页末尾布局与本地首项；`set_c
 注音继续输出符号；光标按解码单元内按键前缀产生的符号数映射到完整单元的同序字符边界，轻声先敲时采用逻辑位置，一声空格不占显示字符。未知键仍按原解码规则聚到尾串，其光标跟随输出位置而可能不单调；首位固定 0，末位固定完整文本长度。`take_raw()` 的提交和清理顺序不变。
 
 `Engine::discard_input` / `EngineSession::discard_input` 用于隐私能力变化时无痕清理输入，包括透传缓冲、学习链和暂存词汇曝光；`set_private` 只切换写入开关，保留已输入的组句。
+
+语音（`voice/`、`engine/voice.rs`）：`Transcriber` 是云端与本地离线识别的接口（非阻塞，`start` / `feed` 单声道 16 位 PCM / `finish` / `cancel`，`poll` 取 `TranscriptEvent`），现在只有 `NoTranscriber`；系统识别器留在各平台壳里。不论哪种识别方式，结果都经 `Engine::commit_voice` 上屏：繁体输出开着时转繁体，记输入历史、例句、输入日志（`InputSource::Voice`）与输入统计（词数按语言模型切，不算选词、不计键数时长），不记词频。设计见 `docs/design/voice-and-swipe.md`。
+
+滑行（`swipe/`）：`SwipeDecoder` 把轨迹（`SwipePoint`）、字母键几何（`SwipeKey`：中心与宽高）与候选词（`SwipeLexicon`：小写字母串 + log10 词频先验，按首尾字母分 26×26 桶；`from_dictionary` 把主词库各词音节连起来、同串词频相加，`from_word_list` 把英文词表的 Zipf×1000 除回去）解成字母串，按可能性排。`ShapeDecoder` 按理想路径与轨迹的形状差（48 点重采样逐点均方 + 字母按序覆盖的动态规划 + 轨迹偏离最远点 + 起终点，键宽归一）乘 5 再减去先验打分，起终点 1.1 键宽内的桶才比、按「先验 − 起终点差」上限从高到低提前停，回前 5；词表空或起终点附近没有词时退回 `CornerDecoder`（起点、终点、拐点最近的键，拐点是前后各 0.4 键宽一段方向差过 50°、连成一串取最急的）。解出的字母由平台像点按一样逐个进组句。设计见 `docs/design/voice-and-swipe.md`。
 
 ## crates/qingjian-translate
 
@@ -102,22 +120,34 @@ CandidateLayout 保持 `set_cloud` 的首页末尾布局与本地首项；`set_c
   Core `InputLogger` trait 的落盘实现，`[general] input_log` 缺省开，只写本机，给离线回归评测与个人模型用）。
 - `UsageStats`：输入统计（`usage-hourly.tsv`，按小时记汉字 / 中文词 / 英文词 / 上屏 / 选词 / 首选 / 键数 / 打字毫秒 / 删过，Core `UsageMeter` trait 的实现，
   Engine 每次上屏 `Usage::of_text` + 按来源定词数，整句按 `segment_text` 切词数；键数与打字时长由 Core `Typing` 数：从这段第一键或上一次上屏起，键间停顿超过 5 秒不算。
+  壳把输入引到自己的工具框（安卓的快捷翻译原文、常用语编辑框）时 `Engine::set_metered(false)`：这些上屏不记统计（学习照常），键数时长一并清掉免得算到下一次头上。
   **每次上屏当场追加一行**（进程被杀、断电最多丢正在写的半行，读时跳过；末尾是半行时先换行再追加），同一时段多行读时相加；`flush` 只在追加失败过、或文件行数比时段数多 `COMPACT_AFTER` = 2000 时整理重写（原子写）。
   0.2.2 以前按天的 `usage.tsv` 照读不写（不分时段），降级回老版本时老版本只写它，两份不冲突。与输入日志无关，设置「统计」页显示，`book_scale` 折成几本《某书》）。
+  派生数统一在 `usage_stats::figures`（re-export 成 `qingjian_learning::figures`）：近 7 天（`RECENT_DAYS` = 7、含今天、滚动，不按周归零；生词本「近 7 天新见」同一个 `recent_start`）、本月、累计、过去 24 小时 `last_24`、速度（`TODAY_MIN_MS` = 30 秒、平均与最快一天 `AVERAGE_MIN_MS` = 5 分钟）、首选率、一次打对、每字键数、最多 / 最快的一天、有输入天数与日均。
+  PC 设置程序统计页与安卓 App 都只调这里，不各自再算，以后多端同步按同一口径；PC 年历一列从周日起只是排版，不是统计数。
 - `VocabularyBook`：词汇记录 / 生词本（`user-vocab.tsv`，Core `VocabularyTracker` trait 的实现：学习语言的每条译词看到过几轮 / 上屏过 / ⌥+数字 打出过几次，
   后三列是「认识」与最近一次的中文、例句（老文件只有前七列照读）；例句由 Core `ExampleCollector` 攒：上屏带译词的词先挂起，句末标点、换行、`break_chain` 或满 80 字时交出整句；
   时间线另记 `vocab-log.tsv`（`encounter_log`，一次相遇一行 `时间\t语言\t中文\t说法\t读音`，落盘时追加）：Core 上屏带译词且至少两个汉字时 `record_encounter`，整句（一次上屏的，与 `ExampleCollector` 收出的分几次上屏、至少 4 个汉字的一句）经 `GlossFiller::translate` 交给 `qingjian-predict` 的整段翻译线程（攒 5 秒或 10 段一批），`poll_glosses` 取回再记；
   设置程序的生词本页也写这个文件，两边写前 `refresh`：按修改时间与长度看出对方写过，就把对方删掉的词删掉、「认识」取对方的；Core 私密输入统一跳过曝光和提交写入，但仍可读取已有记录用于排序和生词标记；
   Engine `annotate` 据此填 `Sense::fresh`，看到轮次不到 `FRESH_UNTIL` = 3 的译词壳里画橙色；「看到」按上屏那一刻屏幕上那一页算，壳每次画完 `Engine::note_displayed` 告知当前页）。
+- `ClipboardHistory`：剪贴板历史（`clipboard.jsonl`，一行一条 `{text, image?, at}`，新的在前）。文字原样存（换行、缩进、制表符都在，所以不用 TSV），
+  一条最多 2 万字符；同样的文字或同一张图再复制挪到最前；条数上限可设（`set_limit`，缺省 `DEFAULT_CLIPBOARD_LIMIT` = 1000），超了丢最旧的。
+  图片存在 `clipboard-images/`，按内容的 64 位 FNV-1a 取名（同一张只存一份），条目删了、没别的条目用这张图就删文件。增删时整份原子重写——
+  1000 条也就几百 KB，毫秒级；以后要全文搜索或上万条再换 SQLite，壳只经这个类型读写。壳只负责读系统剪贴板、把文字或图片交进来。
+- `PhraseBook`：常用语（`phrases.json`，`[{text, group, code}]`，靠前的常用）。增删改、移到最前（`move_to_top`）、分组（`groups`，「默认」总在第一）；
+  输入码只留字母、转小写、最多 64 个（整句全拼或英文短句也放得下），`custom_phrases` 把带码的换成 Core `CustomPhrase`，同一码按先后占第 1–9 位，多的不出。
 - 各表落盘走 Core `storage::write_atomic`（临时文件 + fsync + 改名），加载按行容错（坏行警告跳过，真读不了壳退回内存学习），
   壳激活期间每 60 秒 `Engine::flush_learning`；IMK 回调边界 `imk::catch_panic` 拦 panic、缓冲区字母原样上屏（见 architecture.md「崩溃不丢」）。
 
 ## crates/qingjian-predict
 
+TLS 由 feature 选：缺省 `native-tls`（系统 TLS，桌面各壳与 cli 都用这个）；`rustls`（关掉缺省时）走 ring + `webpki-roots` 内置的 Mozilla 根证书、`tls_backend_preconfigured` 交给 reqwest，不用平台证书库（`rustls-platform-verifier` 在安卓要 Java 侧组件），安卓 `apps/android/core` 直接按路径引、关缺省开 `rustls`。工作区的 `async-openai` 不带 TLS feature，直接用它的（`tools/gloss-gen`）自己开 `native-tls`。
+
 API 用量由 ChatClient 的单次发送入口计入：每次 HTTP 尝试分别累计，关思考参数兼容重试计两次；SDK 隐式重试关闭。CloudPredictor、CloudGlossFiller、ConnectionTest 的 `*_with_usage` 接口可指定共享统计文件，旧构造入口保持无统计行为。`api-usage.json` 只保存计数，文件锁合并跨线程／进程更新，原子写入；损坏文件保留并报告错误。缺失 usage 记未知，不估算 Token。
 每个有结果的请求还在同一把锁里往旁边的 `api-usage-hourly.tsv` 追加一行（日期、时、请求、失败、输入、输出、合计），超过 256 KB 整理成一个时段一行，统计页画按天、按小时的图用（`ApiUsageHours`）。
 
 请求控制：默认防抖 300 ms、最短起始间隔 3000 ms。Engine 的自动入口尊重 `automatic`，显式入口 `request_manual_prediction` 跳过防抖但遵守间隔；取消通道消息清除待发输入，已发结果由序号过滤。缓存命中不受网络间隔限制。SDK 隐式重试关闭，保留模型拒绝关思考参数时的一次显式兼容重试，以及 401/402/403 暂停 10 分钟。
+翻译请求（`PredictionKind::Translate`）出错或撞上暂停时 worker 回一条空 `Prediction`，壳当场结束「翻译中」、报失败，不干等超时；联想照旧不回。回包解析前去掉 `service_tier`：async-openai 那边是封闭枚举，OpenRouter 回 `"asap"` 会让整条解析失败。
 
 Windows 的 `Router::recompose` 在输入清空时调用 `Engine::cancel_prediction`，同时撤销待发联想与译文；不能只作废各类结果的序号，否则 worker 仍会发送并占用请求间隔。输入未清空时保留按类作废，使未变化的整句候选译文可以继续返回。
 
@@ -126,6 +156,7 @@ Windows 的 `Router::recompose` 在输入清空时调用 `Engine::cancel_predict
   前面的本地候选不挪；排布在 Core `CandidateLayout`）和整句补全（preedit 右侧，Tab）；上屏后不联想，本地历史不进请求。
   简拼（半数以上音节是缩写）的请求 `max_items = 0`，只求整句补全（`prediction::mostly_abbreviated`）：按声母凑出来的词大多是生造词，
   拼音校验又按首字母序列匹配放行缩写，拦不住；问字模式的答案不受这条限制。
+  九宫格的作用域是数字，`submit_prediction` 改用同一段的 `QuerySnapshot.pinyin`（九宫格时是拼音行 `typed_display`），没查过这段不发；所以要先 `query` 再 `request_prediction`。
 - `CloudGlossFiller`：释义兜底（Core `GlossFiller` trait，与 Predictor 分开的线程与通道，攒 1.5 秒 / 8 个词发一次，问过不再问）：
   随包释义表没有的词库词 / 云端词上屏后入队，结果壳每秒 `Engine::poll_glosses` 经 `Translator::learn` 写进 `qingjian-translate::PersonalGlossary`
   （`user-glossary-<语言>.tsv`，`LayeredTranslator` 个人表优先）；随云联想开关一起开。
@@ -135,6 +166,14 @@ Windows 的 `Router::recompose` 在输入清空时调用 `Engine::cancel_predict
   （拉丁扩展区间 0x00C0–0x024F，汉字与西里尔字母不收）。
 - 问字键（缺省 `u`）开头是问字模式（`PredictionKind::Question`，答案带读音、不校验拼音），`?` 开头要 `ModeKeys::question_mark` 开着才算（配置 `[shortcut] question_mark`，缺省关，壳用 `Engine::takes_question_mark` 决定空缓冲区的 `?` 是入口还是标点）；问字 / 表达式两种前缀模式共用 `Engine::english_word_candidate`：整段命中英文词表（用户表优先）时本地给英文词候选、不发云请求，于是 u 开头英文词（`unchanged`）不被问字吞掉；`PredictionKind::Translate` 是壳里快捷键触发的「翻译选中文字」
   （双向：汉字为主译成学习语言，外文译回中文，`prediction::translation_target`），译文走结果的 `sentence`。
+
+## crates/qingjian-voice
+
+云端语音识别，实现 Core 的 `Transcriber`。现在只有火山引擎豆包流式语音识别（`volcengine/`）：`VolcengineTranscriber` 每段识别开一个后台线程（`stream.rs`），壳那边 `feed` / `finish` 经通道交过去、`poll` 从通道取，`cancel` 置标志让线程自己收尾。
+线程里是阻塞的 tungstenite WebSocket 跑在 rustls 上（`tls.rs`，ring + `webpki-roots`，不开 tungstenite 自己的 TLS feature，加密实现显式给，不用装进程级缺省），握手后把读超时设成 20 ms，读不到就回头看有没有新录音；写不设超时。
+帧格式在 `protocol.rs`（有单元测试）：4 字节头、序号、长度、gzip 载荷，最后一包序号取负；`X-Api-Sequence: -1` 是文档要求的固定头。中间结果只在文字变了时交。
+`test_connection` 识别半秒静音、阻塞到有结果，设置页「测试连接」用。错误文案：`#[error]` 英文给日志，`VoiceError::describe` 中文给用户。
+rustls 与 `webpki-roots` 提到了工作区依赖，与 `qingjian-predict` 的 `rustls` feature 共用一份。
 
 ## crates/qingjian-format
 
@@ -204,10 +243,24 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 
 ## crates/qingjian-platform
 
-输入方案是**两条独立的轴**：`Scheme`（拼音侧：全拼 / 双拼九套 / 大千注音 / 关，`[general] scheme`）
-与 `[general] wubi`（形码侧：空为关 / `wubi86`）。两边都开就是**混输**（`GeneralConfig::mixed`）。
-`scheme_label(pinyin, wubi)` 是状态条显示的方案名（形码在前），做成自由函数而不是存进 `RouterConfig`——
-存了会与那两项冗余、手搓配置的地方就漂移（状态条那条测试正是这么发现的）。
+输入方案是**两条独立的轴**：`Scheme`（拼音侧：全拼 / 双拼九套 / 用户双拼 `Scheme::Custom` / 大千注音 / 关，`[general] scheme`；
+认不出的写法能当方案 id 就是 `Custom`，id 由 `GeneralConfig::custom_shuangpin` 给，找不到时壳按全拼跑）
+与 `[general] code`（形码侧：`off` 为关 / `wubi86` / 用户方案 id，`GeneralConfig::code`；没写时认旧键 `wubi = "wubi86"`）。两边都开就是**混输**（`GeneralConfig::mixed`）。
+`scheme_label(pinyin, shuangpin_label, code_label)` 是状态条显示的方案名（形码在前），做成自由函数；用户方案的名字要读 `scheme.toml` 才知道，
+所以由壳手里的 `SchemeSlot` 存着，壳调 `SchemeSlot::scheme_label` / `scheme_name`。
+
+`code_schemes`：形码方案的发现。随包与用户的方案同一种格式：`schemes/<id>/` 下 `scheme.toml`（必须有，`type` 空着或 `code`）+ 码表（缺省 `table.tsv`），
+自动上屏与顶字缺省开；`SchemeMeta`（author / version / description / license）两种方案共用，留给分享与设置里显示。
+用户在设置里改的规则存配置的 `[code.<id>]`（`CodeRules`，`Config::code_rules`），盖过 `scheme.toml`：随包方案只读，换码表也不丢；
+`Config::set_value` 的分节写成 `code.wubi86` 就是嵌套表（外层隐式）。随包的 `schemes` 目录由壳给（macOS `Resources/schemes/`、Windows `assets/schemes/`），用户的在数据目录；
+同 id 的用户方案盖过随包的，老位置 `wubi/wubi86.tsv` 只换随包五笔的码表。
+`shuangpin_schemes`：用户双拼方案的发现，与形码共用 `schemes/` 目录与 id 规则，`scheme.toml` 写 `type = "shuangpin"` 的才算（形码那边见到它跳过）；
+`base` 拿内置方案当底子，`[initials]` / `[finals]` / `[zero]` 按键（零声母按音节）整条替换。内置九套仍编在 Core 里：回放与 CLI 不依赖外部文件，日志里的 `xiaohe` 永远是同一套键位。
+`SchemeSlot`（`scheme_slot.rs`）是壳持有的「装着哪套」，两侧一起装：每次配置热加载都按配置重新找方案，但形码方案（含规则）与码表文件的修改时间、长度都没变时不重读码表——
+热加载多半是改了别的设置，8.9 万条每次重读是白花的；只改了 `[code.<id>]` 的规则走 `Engine::set_code_rules`，也不重读。
+双拼键位表很小，每次重读、变了才换进引擎。`SchemeSlot::apply` 直接收 `&Config`，三条输入（拼音侧、形码 id、规则）都从配置取。
+id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为输入日志把两侧拼成 `<拼音>+<形码键>`，86 五笔的日志键沿用 `wubi`（`CodeSchemeEntry::log_key`）。
+目录坏了、码表不在的方案跳过并记日志；选了却找不到的方案壳里警告并按拼音跑。
 
 演进：2026-09-16 之前是 `shuangpin` + `zhuyin` 两个键表达同一个维度，先并成单选的 `scheme`，
 同一天又拆成两条轴（单选的 `scheme` 表达不了混输）。旧键（`shuangpin` / `zhuyin` / `scheme = "wubi86"`）
@@ -220,6 +273,10 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 `extra_dictionaries` 列出 / 加载随包领域词库与用户 `dicts/`
 （mac 壳与 Windows Server 共用，同名 `.qj` 优先于 `.tsv`）；`code_tables` 同构地列出 / 加载随包根 `codes/` 与用户 `codes/` 的码表
 （`[aux_code] disabled` 是黑名单，`[general] aux_code_key` 缺省 `;` 且校验后退回缺省、`aux_code_show` 是显示码开关）；
+`aux_schemes` 找 `schemes/` 里 `type = "aux"` 的辅码方案（码表 + `[words]` 词码规则），`code_tables::AuxCodeSources::options` 把 `codes/` 与方案按先后列出，
+随包 `codes/stroke.qj`（`code_tables::STROKE`）装上时挂笔画的词码规则（与 `dict-convert` 打包同一条），表里只有基础词库的词，自造词与导入词库的词靠它现算；
+`load` 按 `AuxCodeConfig::pick`（`[aux_code] scheme`，没选或找不到时第一套不在老 `disabled` 里的）只装一套——设置程序的下拉框用同一个 `pick`，显示的就是输入法实际用的那套，
+`snapshot` 只 stat 用户 `codes/` 与 `schemes/*/` 下的文件、不解析 `scheme.toml`，两个壳轮询它发现导入与改方案；
 `protocol` 模块是 Windows Server ↔ TSF DLL 的 IPC 协议类型
 （`ClientMessage` / `ServerMessage` / `Frame` / `PreeditSegment`，全 serde，两端共用，见 `docs/design/architecture.md`「Windows：TSF」；
 协议版本见 `PROTOCOL_VERSION`，`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关，
@@ -239,7 +296,7 @@ Windows Server 自绘候选窗（GDI）按 `Frame.columns` / `column_ems` 画矩
 这套按键 mac 壳（`Host::grid_keys`）与 Windows Server（`RouterConfig::grid_keys`）都由 `[general] horizontal_grid`（缺省关）加横排两个条件一起开。
 
 自绘渲染器：候选窗一帧 + 主题 → 预乘 RGBA 位图。主题是 `themes/<id>/theme.json`（内置青简绿 / 系统蓝 / 微信绿 / 樱花 / 大肥鱼 / 初音未来 / 波奇酱编进 crate；新增内置主题前先查主题仓库 qingjian-themes 有没有同名 id，加了之后同步它 `tools/check.py` 的 `RESERVED_IDS`，否则那个用户主题会被拒绝加载；图片也可以 `include_bytes!` 编进去（`BUILTINS` 的文件表），`Theme::builtin(id)` / `builtins()` 取；没写 `extends` 的主题都以青简绿为底（`theme/mod.rs` 的 `ROOT_THEME`），用户主题还能取到所继承内置主题的图片；用户主题在 `<数据目录>/themes/<id>/theme.json`，`ThemeLibrary` 合并并按目录戳热加载；`theme/file/` 是 serde 模型，`theme/jsonc.rs` 解析前去掉注释与尾逗号，格式见 `docs/design/theme.md`「格式（schema 1）」），`renderer/build/` 按模板实例化场景树（`scene/`：Taffy 布局树 + 每节点一个 `Visual`，竖排三列用 grid、其余 flex，高亮条与光标绝对定位；布局不取整，文字测量按节点缓存；表格一行里的格子按第一段文字的基线对齐，`scene/baseline.rs` 补上边距再排一遍），再按树序画（节点的投影 / 内阴影在 `scene/draw/effect.rs`：把节点自己的画面画进离屏图取 alpha，三遍盒式模糊；窗口阴影就是根节点的投影；位图按 `scene/extent.rs` 并出的画出范围开（投影、描边、负 inset 伸出窗口的装饰都在里面），壳按 `Rendered::content_*` 对齐，mac 面板关系统阴影；`Rendered::hits` 是候选与各条译词的点击区域（`renderer/hit/`，译词按义项分隔数分条，横排底下那行算高亮候选的），壳只在这些区域收鼠标、其余穿透）；过渡在 `animation/`（缓动、插值）与 `renderer/{animate,retained}.rs`：`Renderer` 留住上一帧，按节点 `id` 配对算过渡，`Rendered::next_frame` 告诉壳多久后调 `tick`（mac `candidates/animation.rs` 的 NSTimer、Windows UI 线程消息循环截 `WM_TIMER`），窗口收起调 `forget`；动画帧只重画、不重建树，效果遮罩与图片框按键缓存（`scene/cache_key.rs`）；循环动画 `animation/keyframes.rs` 求姿态，带姿态节点整棵子树画进缓存小图再变换贴上，循环帧走局部重画（`renderer/partial.rs` + `scene/split.rs` 分段模式）；tiny-skia 栅格 + cosmic-text 文字（fontdb 按平台清单只加载几个字体文件、不扫系统；
-脚本字体文件要先过轮廓检查，任一面带 `glyf` / `CFF ` 才加载——macOS 26+ 的苹方换成私有 `hvgl` 可变轮廓，swash 读不出字形，
+脚本字体文件要先过轮廓检查，任一面带 `glyf` / `CFF ` / `CFF2` 才加载（Android 的 Noto CJK 是 CFF2 可变字体；Android 上 cosmic-text 没有按 locale 的回退表，`fonts/android.rs` 加载后只留 locale 那张 CJK 面）——macOS 26+ 的苹方换成私有 `hvgl` 可变轮廓，swash 读不出字形，
 这种文件跳过，简体回退到 Songti.ttc），
 自己解析 `trak` 字距表、按主题 gamma 加深笔画；主题样式的字族在 `theme/font/families.rs` 去重成字族表（样式里存序号），`TextPainter::use_families` 换主题时给每条链挑装了的字族，主题要的系统字族由壳查文件经 `Renderer::load_theme_fonts` 加载（mac 同 `bitmap/font_files.rs`、Windows 同 `system_fonts::family_files`），随主题带的字体在 `theme/assets.rs` 核路径；主题图片 `.svg` 结尾的走 `theme/svg_image.rs`（resvg 0.48，与渲染器同一个 tiny-skia，关掉 text / raster-images 与外部文件读取），画时按像素尺寸栅格并缓存；cosmic-text 打了 `opsz` 光学字号补丁（qingjian-team/cosmic-text 分支 `qingjian-opsz`，workspace `[patch.crates-io]` 钉 rev）。
 `examples/preview.rs` 出 PNG 与真机截图并排比、`--measure` 与 AppKit 对宽度、`--theme <目录>` 画用户主题（系统字族在 `--font-dir` 里按名字找）。
@@ -262,13 +319,14 @@ Windows Server 自绘候选窗（GDI）按 `Frame.columns` / `column_ems` 画矩
 测试工具，`cargo run -p qingjian-cli -- kaifa`。
 
 - `--predict` 强制开云联想并等结果打印，交互模式下上屏后也联想。
-- `--wubi <码表>` 用形码码表（`词\t编码\t词频` 的 TSV）替代拼音：按键当编码按前缀查表，候选不带音节，上屏吃掉整段编码。
+- `--code <码表或方案目录>`（旧写法 `--wubi`）开形码：给 TSV（`词\t编码\t词频`）按 86 五笔记日志、按键规则全关；给方案目录按 `scheme.toml` 来。
+  按键当编码按前缀查表，候选不带音节，上屏吃掉整段编码。
 - `--typing` 逐键计时（性能测试用 release 构建跑，目标每键 10 ms 以内）。
 - `--chinese-first` 打开中文优先（`[general] chinese_first = true` 的排法），配合 `--replay` 比两种英文词位置。
 - `--replay <input-log.jsonl>` 回放评测：把日志里每次上屏的键重新喂给引擎，按来源算首选 / 前五命中率、平均名次、不在候选的条数，打印没命中的例子（`--misses N`）；
   只在内存里学习不写文件，加 `--user-dict` 可带上现有学习数据。
   **按日志记的方案逐条切换**（`replay/scheme.rs` 的 `SchemeSwitcher`，读每条的 `scheme` 字段）：整份日志通常只有一套方案，
-  所以只在方案串变化时才换码表（`Engine::set_code_table` 收所有权，换一次要克隆 8.9 万条）。日志里是形码但没给 `--wubi` 时，
+  所以只在方案串变化时才换码表（`Engine::set_code_scheme` 收所有权，换一次要克隆 8.9 万条）。日志里是形码（不管哪个方案键，都用 `--code` 给的那一套）但没给 `--code` 时，
   那部分只计数——拿拼音的读法喂形码的键会算出看着像真的、实则无意义的命中率。
   含触发键的日志行按壳那样逐键重喂（进辅码态、码段进码段），
   并多打一行「辅码选词 N 条，其中同拼音纯输入首选命中 M 条」（学习闭环的尺子）。
@@ -318,8 +376,8 @@ PKG_CONFIG_PATH="$onig" PKG_CONFIG_ALLOW_CROSS=1 RUSTONIG_SYSTEM_LIBONIG=1 \
 
 - 输入法菜单（状态项 + 系统输入源菜单）与偏好设置窗口都是配置文件的前端：只写 `config.toml`，`Host::apply_config` 一条通路热加载，激活期间每秒看一次文件 mtime。
   翻页键（`[general] page_keys`）走 `Session::page_target` / `can_turn_page`：选 `-=` 时 `-` / `=` **没有上一页 / 下一页就落回原语义**（英文直输段），别的翻页键翻不动照旧吃键（`imk/controller/display.rs::page_key`）。Windows / Linux 还是老行为，尚未同步。
-  输入方案（`[general] scheme`）也在这里装配：双拼 / 注音设给引擎，形码额外按 `paths::code_table_path()` 挂码表
-  （用户目录 `wubi/wubi86.tsv` 优先，包里 `Resources/wubi/` 兜底；找不到只警告并按拼音跑）。
+  输入方案（`[general] scheme` 与 `code`）也在这里装配，交给 `Host::scheme_slot`（`qingjian_platform::SchemeSlot`，随包方案目录是 `paths::bundled_schemes_dir()`）；
+  找不到或码表坏了只警告并按拼音跑。顶字与满码自动上屏接在 `imk/controller/text.rs` 收字母那里。
 - `apps/macos/scripts/bundle.sh --install` 打包安装到 `~/Library/Input Methods/`（开发用），`--pkg` 做分发用的 pkg（装 `/Library/Input Methods/`，postinstall 跑 `qingjian-macos --register`
   注册、启用并切成当前输入源；签名 / 公证靠 `QINGJIAN_SIGN_IDENTITY` / `QINGJIAN_INSTALLER_IDENTITY` / `QINGJIAN_NOTARY_PROFILE`，没设就 ad-hoc；`QINGJIAN_TARGET` 指定架构，
   成品 `target/pkg/qingjian-<版本>-macos-<arm64|x86_64>.pkg`）；`scripts/uninstall.sh` 卸载。
@@ -328,6 +386,8 @@ PKG_CONFIG_PATH="$onig" PKG_CONFIG_ALLOW_CROSS=1 RUSTONIG_SYSTEM_LIBONIG=1 \
   所以 postinstall、安装器结尾页与用户文档都把「注销重登」放第一步。当时 `target/Qingjian.app` 也在 LaunchServices 里登记着（同一个 bundle id 两份），
   bundle.sh 因此在 `--install` / `--pkg` 用完就把 `target/` 与 pkg 暂存目录里的副本删掉、再按路径从 LaunchServices 注销（`forget_bundle`；
   顺序不能反：登记是异步的，先注销再删会留下指向已删路径的记录）。只是这一步当时没让菜单出现，真正起作用的是重登。
+- 辅码：`host/aux_code.rs` 按 `AuxCodeSources` 装码表（随包 `Resources/codes/`，bundle.sh 从 `data/generated/codes/` 拷，连同 CNS 署名），`reload_config_if_changed` 顺带比文件快照；
+  按键分流在 `imk/controller/text.rs`，规则与 Windows Server 一致（触发键、码段、筛空吞键、辅码态标点先上屏），Esc 在辅码态只清码段；`Row.code` 进渲染器，旧原生候选窗不画码。
 - 日志在 `~/Library/Logs/Qingjian/`（按天分文件留 7 天，删了会重建），用户数据与配置在 `~/Library/Application Support/Qingjian/`。
 - 配置项：云联想 `[predict]`（偏好设置「云服务」页有「测试连接」按钮：`qingjian_predict::ConnectionTest` 起线程发一条最小请求，`Host` 用独立定时器 `CloudTestMonitor` 轮询结果显示到窗口底部；
   `reasoning_effort` 缺省 `none`，DeepSeek V4 默认思考，不关正文为空）；模糊音 `[fuzzy]` 默认都关；`[general]` 学习语言（`off` 不显示译文）/ 每页候选数 / 翻页键 / 外观 / 竖排横排 / 拼音显示位置 /
@@ -357,8 +417,8 @@ PKG_CONFIG_PATH="$onig" PKG_CONFIG_ALLOW_CROSS=1 RUSTONIG_SYSTEM_LIBONIG=1 \
 
 一个产品两个 package：`server`（Server 进程：IPC 分派 + Engine + 命名管道 + 自绘候选窗与悬浮状态条）与 `tsf`（TSF 文本服务 DLL，lib 名固定 `qingjian_tsf`），
 外加 `settings`（旧版 WinUI 3 设置程序 `qingjian-settings-legacy.exe`，兜底用）与 `installer`（Inno Setup，同时装 `apps/settings` 的 `qingjian-settings.exe`）。
-Server 侧辅码接线：`RouterConfig.aux_code_key` / `aux_code_show`（`apply_config` 热加载）、`assembly` 从随包 `codes/` 与用户 `codes/` 装码表
-（`[aux_code] disabled` 过滤，`code_tables::load`）、按键在 `dispatch/key/input.rs` 分流（触发键进辅码态、辅码态里字母进码段、
+Server 侧辅码接线：`RouterConfig.aux_code_key` / `aux_code_show`（`apply_config` 热加载）、`assembly` 按 `AuxCodeSources` 装 `codes/` 与辅码方案
+（`[aux_code] disabled` 过滤，热加载轮询 `DataDirs::code_snapshot`）、按键在 `dispatch/key/input.rs` 分流（触发键进辅码态、辅码态里字母进码段、
 大写（`shift_letter = "compose"`）先清码段回拼音态再进缓冲区、标点先上屏高亮候选再转全角）、候选窗 `ui/candidates/row.rs` 的 `Row.code` 把码用方括号括起来紧跟在候选词后面（不进 annotation），拼音行 `view.rs` 给码段加下划线。
 热加载的 `dicts/` 与 `codes/` 目录与启动同款（修过一处传基础目录的错）。不合成一个 crate，因为 DLL 不能带 Engine 的依赖树，见 `apps/windows/README.md`；
 协议类型在 `qingjian-platform::protocol`，设计见 `docs/design/architecture.md`「Windows：TSF」。
@@ -367,9 +427,10 @@ Windows 的 `dispatch/mode` 管理可选的初始英文与按应用模式记忆�
 `remember_mode_per_app`，缺省关闭）：exe 名不区分大小写，相同 exe 的会话共享；未知宿主按会话隔离。
 应用记忆只驻留 Server 内存，配置中的模式策略变更时重置；模式焦点与组句焦点分开，避免切应用时丢掉待提交的输入。
 `InputSettings.restore_mode` 让启用这些设置的 DLL 重连时先取 Server 状态，不用旧状态覆盖默认值；旧协议缺字段按 false 处理。
-输入方案由 `[general] scheme` 一处决定，Server 启动与热加载各装配一次；形码的码表用 `dispatch::code::find_code_table` 找
-（用户目录 `wubi/wubi86.tsv` 优先，随包 `assets/wubi/wubi86.tsv` 兜底——走 `assets/` 与 emoji / levels 一致，开发布局也对得上），**路径在启动时定下、热加载不重新找**。
-选了形码却没有码表文件时只警告并按拼音跑——配置说五笔、引擎还在拼音是静默错位，宁可吵。
+输入方案由 `[general] scheme` 与 `code` 决定，Server 启动与热加载各装配一次（`dispatch/schemes.rs`）；随包方案目录 `assets/schemes/` 启动时由 `find_bundled_schemes` 找好
+（走 `assets/` 与 emoji / levels 一致，开发布局也对得上），装配交给 `Router::scheme_slot`，用户在设置里换方案、新放进方案热加载即生效，码表没变不重读。
+选了形码却找不到方案或码表读不了时只警告并按拼音跑——配置说五笔、引擎还在拼音是静默错位，宁可吵。
+顶字与满码自动上屏在 `key/input.rs` 的 `push_letter`。
 中英模式的两项设置（`[shortcut] switch_mode` 切换键：勾选 shift / control / ctrl+alt+space，`[general] english_mode` 内置英文模式开关）
 由 Server 经协议下发给 DLL（`InputSettings`，见下文「按键行为设置」），改完在下一拍（约 320 ms）生效；
 `ctrl+alt+space` 走 TSF 保留键登记（`com/key/preserved.rs` 的 `GUID_SWITCH_MODE`）。系统的 Ctrl + Space（「输入法/非输入法切换」）由设置页单独列项，`settings/src/panel/system_hotkey.rs` 通过 `ImmGetHotKey` / `ImmSetHotKey` 读写 `IME_CHOTKEY_IME_NONIME_TOGGLE`，不写入 `switch_mode`、不重复注册 TSF 保留键；同一项也会影响其他简体中文输入法。TSF 适配它：
@@ -408,8 +469,9 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 ## assets
 
 - `assets/sample/`：手写样例词库与释义表，不是产品数据。
-- `assets/wubi/wubi86.tsv`：五笔码表（`dict-convert wubi` 生成，来源与许可见同目录 README，Apache-2.0）。
-  `bundle.sh` 拷到 `Resources/wubi/`，Windows 安装器拷到 `{app}\assets\wubi\`（与两边 Server 的找法对齐：macOS `paths::code_table_path`、Windows `dispatch::code::find_code_table`）。
+- `assets/schemes/wubi86/`：随包形码方案（`scheme.toml` + `table.tsv`，码表由 `dict-convert wubi` 生成，来源与许可见同目录 README，Apache-2.0）。
+  `bundle.sh` 把 `assets/schemes/*/` 的 `scheme.toml` 与 `table.tsv` 拷到 `Resources/schemes/`，Windows 安装器拷到 `{app}\assets\schemes\`
+  （与两边的找法对齐：macOS `paths::bundled_schemes_dir`、Windows `dispatch::schemes::find_bundled_schemes`）。
 - `assets/emoji/emoji-zh.tsv` / `emoji-en.tsv`：Unicode CLDR 中文 / 英文 annotations 转出的 emoji 表（Unicode License v3，可发布；中文词与英文词各配 emoji，两张表加载时合成一张），
   `cargo run --release -p qingjian-dict-convert -- --out-dir assets/emoji emoji --language zh data/cldr/annotations-zh.json data/cldr/annotationsDerived-zh.json`（en 同理）。
 - `crates/qingjian-core/data/panel/{catalog,keywords}.tsv`：符号面板的分类与搜索关键词，`uv run tools/corpus/symbol_panel.py`（参数见脚本头）由维护者整理的符号库、
@@ -431,7 +493,9 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
   `dicts/<领域>.tsv` + `.qj`（11 本、13 万条，`--domain-keep-min`），流程见 `assets/lexicon/QINGJIAN.md`；Unihan 只给 `n` / `ng` 的字（嗯）按输入习惯收成 `en`；生僻字表 `01_characters/rare_chars.tsv`（`tools/corpus/rare_chars.py` 从「规范字表外扩充汉字」与台湾教育部罕用字 C 表合成，3.6 万字）里词库没有的字按词频 0 收、读音用表里的（词频 0：不进整句词图、`bigram` 分词跳过，语料里的日文新字体与繁体残留不会把它们统计成常用字；表里标 `everyday` 的 诶 囧 按规范字处理），音节表为此加了 `fiao`（覅）`biang`（𰻝），切分与双拼同键时让给常用音节；`--extra-words` 并入人工挑的领域词 `assets/lexicon/domain_words.tsv`（2026-09-27 起该文件另含按 jieba 词表（MIT）对照出的缺失高频词：读音逐字取 Unihan、多音字逐条人工判定（判定明细与理由在 `assets/lexicon/00_meta/polyphone-judgments.tsv`），词频按 log-log 回归从 jieba 次数折算；另含「姓氏+总」称谓层 98 条与符号词 6 条，定值依据见文件头注。这些词进语言模型同样走 `bigram --phrases`，改了词库发数据时要重跑 bigram，否则新词只拿兜底分、会被同音的 lm 词压过）。
 - `english`：转 `assets/lexicon/05_english/00_all_words.tsv`；同编码优先保留含大写的专名写法（Windows ≠ windows），
   展示写法补充表 `07_display_forms.tsv` 后置读入；`cedict`：释义表备用来源。中英混杂词源在 `assets/lexicon/mixed_words.tsv`（`lexicon --extra-words`）。
-- `wubi`：Rime 形码码表（`.dict.yaml`，极点 86 五笔）→ `词\t编码\t词频`（`wubi.rs`，`--name` 决定文件名，缺省 `wubi86.tsv`）。
+- `tones`：`assets/lexicon/02_common` 通用词表的数字声调逐字收成单字声调表（`字\t带调音节…`，轻声记 5，按词表排序号首次出现的顺序，第一个当首读音），
+  `--out-dir crates/qingjian-core/data` 直接写到 Core 的 `data/tones.tsv`（`include_str!`，进 git，约 5 千字 50 KB）；通用词表没收的字没有声调，注音排序当查不到。
+- `wubi`：Rime 形码码表（`.dict.yaml`，极点 86 五笔）→ `词\t编码\t词频`（`wubi.rs`，`--name` 决定文件名，缺省 `table.tsv`，即形码方案目录里码表的缺省名）。
   **码表自带的权重不用**——那是码表顺序不是语料词频，用了同一个词在形码下和在拼音下会排得不一样；词频从青简词库按**词面**交叉回填，
   词库里没有的词给 `UNKNOWN_FREQUENCY = 1`。解析复用 `qingjian_dictionary::import::rime`（与用户导入 Rime 词库同一个解析器，
   形码码表的第二列是编码，格式一样）。词库还没收的词不收（码表整张进，不做取码推导，见 `docs/plan/wubi.md`）。

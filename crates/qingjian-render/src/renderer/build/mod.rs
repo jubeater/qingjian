@@ -52,6 +52,7 @@ impl Builder<'_> {
         let spec = match layout {
             Layout::Vertical => &windows.vertical,
             Layout::Horizontal => &windows.horizontal,
+            Layout::Strip => &windows.strip,
         };
         self.root(spec, Context::new(frame))
     }

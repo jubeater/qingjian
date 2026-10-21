@@ -347,3 +347,57 @@ fn info_marks_with_a_link_send_it_when_clicked() {
     );
     assert!(click(&mut interaction, Key::ROOT.child(("info", "没链接"))).is_empty());
 }
+
+#[test]
+fn a_long_select_value_stays_inside_its_box() {
+    let mut text = TextPainter::new(FontLibrary::system("en").unwrap());
+    let theme = WidgetTheme::new(WidgetColors::LIGHT, 1.0);
+    let interaction = Interaction::<Message>::new();
+    let mut ui = Ui::new(&interaction);
+    let long = "一个名字特别特别特别长的方案".repeat(3);
+    let select = Select::new(&long)
+        .width(160.0)
+        .max_width(240.0)
+        .build(&mut ui, &theme, "select", Message::Toggle)
+        .unwrap();
+    let short = Select::new("关")
+        .width(160.0)
+        .max_width(240.0)
+        .build(&mut ui, &theme, "short", Message::Toggle)
+        .unwrap();
+    let root = ui
+        .scene()
+        .node(
+            Style {
+                flex_direction: FlexDirection::Column,
+                align_items: Some(taffy::AlignItems::FLEX_START),
+                ..Style::default()
+            },
+            Visual::Group,
+            &[select, short],
+        )
+        .unwrap();
+    let (mut scene, _) = ui.finish();
+    layout(&mut scene, root, &mut text);
+    let (_, _, width, _) = scene.rect_in(select, root).unwrap();
+    assert!((width - 240.0).abs() < 0.5, "{width}");
+    let (_, _, width, _) = scene.rect_in(short, root).unwrap();
+    assert!((width - 160.0).abs() < 0.5, "{width}");
+}
+
+#[test]
+fn fitting_text_cuts_it_and_adds_an_ellipsis() {
+    let mut text = TextPainter::new(FontLibrary::system("en").unwrap());
+    let theme = WidgetTheme::new(WidgetColors::LIGHT, 1.0);
+    let style = theme.text(13.0, 400, theme.colors.text);
+    let whole = "五笔测试（不自动上屏）";
+    let width = text.measure(whole, &style).width;
+    assert_eq!(text.fit(whole, &style, width), whole);
+    let fitted = text.fit(whole, &style, width / 2.0);
+    assert!(
+        fitted.ends_with('…') && fitted.len() < whole.len(),
+        "{fitted}"
+    );
+    assert!(text.measure(&fitted, &style).width <= width / 2.0 + 0.5);
+    assert_eq!(text.fit(whole, &style, 1.0), "…");
+}

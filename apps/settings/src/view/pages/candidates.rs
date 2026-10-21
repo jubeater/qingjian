@@ -2,12 +2,12 @@
 
 use bamboo_slip::taffy::NodeId;
 use bamboo_slip::{RenderError, SettingRow, Stepper, Ui, group, section_title};
-use qingjian_core::TraditionalVariant;
+use qingjian_core::{LEARNING_LANGUAGES, TraditionalVariant};
 use qingjian_platform::{EmojiCount, MAX_PAGE_SIZE};
 
 use crate::message::{Message, Popup};
 use crate::view::Page;
-use crate::view::parts::controls::{LANGUAGES, select, toggle_info, toggle_with};
+use crate::view::parts::controls::{select, toggle_info, toggle_with};
 
 pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderError> {
     let theme = &page.theme;
@@ -25,11 +25,11 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
             Message::set("general", "page_size", (size - 1) as i64),
             Message::set("general", "page_size", (size + 1) as i64),
         )?;
-    let language = LANGUAGES
+    let language = LEARNING_LANGUAGES
         .iter()
         .find(|(code, _)| *code == general.learning_language)
         .map_or(general.learning_language.as_str(), |(_, label)| label);
-    let names: Vec<&str> = LANGUAGES.iter().map(|(_, name)| *name).collect();
+    let names: Vec<&str> = LEARNING_LANGUAGES.iter().map(|(_, name)| *name).collect();
     let language = select(
         ui,
         page,

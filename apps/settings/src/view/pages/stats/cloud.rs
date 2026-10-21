@@ -32,7 +32,7 @@ pub fn cloud(
     };
     let row = [
         hour_card(ui, page, "今天 Token", &stats.today_usage())?,
-        hour_card(ui, page, "本周 Token", &stats.week())?,
+        hour_card(ui, page, "近 7 天 Token", &stats.recent())?,
         hour_card(ui, page, "本月 Token", &stats.month())?,
         total,
     ];

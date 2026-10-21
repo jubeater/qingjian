@@ -247,7 +247,7 @@ Linux 在 `apps/linux/server/src/protocol/` 另有一套 JSON 消息，候选连
    |---|---|---|---|
    | 神经重排（`set_async_sentence_scorer`） | ✓ | ✓ | ✓ |
    | 云联想 / 释义兜底 | ✓ | ✓ | — |
-   | 五笔（`set_code_table`） | ✓ | ✓ | — |
+   | 形码（`set_code_scheme`） | ✓ | ✓ | — |
    | 辅码（`set_aux_codes`） | — | ✓ | — |
    | 繁体（`set_traditional_mode`） | ✓ | ✓ | — |
    | 退格撤销（`note_backspace`） | ✓ | — | — |

@@ -461,3 +461,39 @@ fn horizontal_grid_up_at_the_first_row_returns_to_the_first_candidate() {
     let frame = key(&mut router, UP, None, normal).2;
     assert_eq!((frame.columns, frame.highlight), (2, 0));
 }
+
+/// 自动空格：上屏汉字后接着打数字补空格；退格删掉那个字后不知道上文，不补。
+#[test]
+fn auto_space_follows_commits_and_backspace() {
+    let mut router = router(5);
+    router.engine.set_auto_space(true);
+    let normal = KeyModifiers::default();
+    compose(&mut router, "ni", normal);
+    assert_eq!(
+        key(&mut router, 0x20, Some(' '), normal).1.as_deref(),
+        Some("你")
+    );
+    let (outcome, commit, _) = key(&mut router, 0x33, Some('3'), normal);
+    assert_eq!(
+        (outcome, commit.as_deref()),
+        (KeyOutcome::Consumed, Some(" 3"))
+    );
+    // 数字后面再打数字不补
+    assert_eq!(
+        key(&mut router, 0x34, Some('4'), normal).0,
+        KeyOutcome::Passthrough
+    );
+
+    let mut router = self::router(5);
+    router.engine.set_auto_space(true);
+    compose(&mut router, "ni", normal);
+    key(&mut router, 0x20, Some(' '), normal);
+    assert_eq!(
+        key(&mut router, 0x08, None, normal).0,
+        KeyOutcome::Passthrough
+    );
+    assert_eq!(
+        key(&mut router, 0x33, Some('3'), normal).0,
+        KeyOutcome::Passthrough
+    );
+}

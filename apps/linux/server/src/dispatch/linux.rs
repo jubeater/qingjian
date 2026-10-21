@@ -194,6 +194,8 @@ impl Router {
         } else {
             Default::default()
         };
+        // 选词没选完一段拼音时 Core 把词留在组句里、上屏文本是空串
+        let commit = commit.filter(|text| !text.is_empty());
         Some(ServerMessage::KeyResult {
             session,
             outcome,

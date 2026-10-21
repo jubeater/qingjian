@@ -6,6 +6,7 @@ mod measure_key;
 mod size;
 mod style;
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -25,6 +26,9 @@ use measure_key::MeasureKey;
 
 /// 量宽缓存的上限，满了整个清掉（设置页一屏的文字在几百条以内）。
 const MEASURED_LIMIT: usize = 4096;
+
+/// 截短文字时补在末尾的省略号。
+const ELLIPSIS: &str = "…";
 
 pub struct TextPainter {
     /// 字体库与回退链。
@@ -185,6 +189,29 @@ impl TextPainter {
             height: style.line_height * f32::from(if style.wrap { lines.max(1) } else { 1 }),
             baseline: baseline.unwrap_or(0.0),
         }
+    }
+
+    /// 一行放进 `width` 像素：放得下原样返回，放不下截到能放下的最长前缀再补「…」（一个字都放不下就只剩「…」）。
+    pub fn fit<'a>(&mut self, text: &'a str, style: &TextStyle, width: f32) -> Cow<'a, str> {
+        // 量出来的宽与布局给的宽可能差一点舍入，放宽半个像素
+        let width = width + 0.5;
+        if self.measure(text, style).width <= width {
+            return Cow::Borrowed(text);
+        }
+        let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).skip(1).collect();
+        // 二分找最长的放得下的前缀（`ends[i]` 是前 i + 1 个字的结尾）
+        let (mut low, mut high) = (0, ends.len());
+        while low < high {
+            let middle = (low + high).div_ceil(2);
+            let candidate = format!("{}{ELLIPSIS}", &text[..ends[middle - 1]]);
+            if self.measure(&candidate, style).width <= width {
+                low = middle;
+            } else {
+                high = middle - 1;
+            }
+        }
+        let prefix = if low == 0 { "" } else { &text[..ends[low - 1]] };
+        Cow::Owned(format!("{}{ELLIPSIS}", prefix.trim_end()))
     }
 
     /// 把文字画到 `(x, y)`，`y` 是行框顶边，一行到底。返回宽度。

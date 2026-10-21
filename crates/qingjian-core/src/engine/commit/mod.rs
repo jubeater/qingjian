@@ -78,17 +78,23 @@ impl Engine {
             last.chars = text.chars().count();
             last.tail = text.chars().last();
         }
-        Some(text)
+        Some(self.take_held() + &text)
     }
 
-    /// 候选比输入短时（`kaifazhe` 选了 开发），剩余拼音留在缓冲区，壳应接着 [`Self::query`]。
+    /// 候选比输入短时（`kaifazhe` 选了 开发），剩余拼音留在缓冲区，壳应接着 [`Self::query`]；
+    /// 这时选的词先留在组句里、返回空串，整段选完时连同前面留着的一起返回（见 [`Self::take_held`]）。
     /// 候选的最后一个音节比输入长时（`kaif` 选了 开发），把输入吃完。
     /// 开了自动空格（[`Self::set_auto_space`]）时与上文、候选内部的中西文交界都补好空格。
+    /// 面板开着时上屏的是面板里的条目：记一次使用（私密输入不记），下次打开排进「常用」。
     pub fn commit(&mut self, candidate: &Candidate) -> String {
-        self.panel = None;
+        if self.panel.take().is_some() && !self.private {
+            self.panel_history.record(&candidate.text);
+        }
         let lead = self.auto_space_before(&candidate.text);
+        let before = self.hold_selections.then(|| self.composition.clone());
         let text = self.commit_with(candidate, InputSource::from(candidate.kind), None);
-        if lead { format!(" {text}") } else { text }
+        let text = if lead { format!(" {text}") } else { text };
+        self.hold_or_release(before, text)
     }
 
     /// [`Self::commit`] 的内部形式：`source` 写进输入日志（上屏译词时不是候选本身），
@@ -447,7 +453,7 @@ impl Engine {
     /// 双拼不记（键与全拼对不上）。
     pub(super) fn accepted_typos(&self, candidate: &Candidate) -> Vec<(String, String)> {
         let keys = self.composition.scope();
-        if self.decode(keys).is_some() {
+        if self.nine_key || self.decode(keys).is_some() {
             return Vec::new();
         }
         match self.active_correction(keys) {
@@ -468,6 +474,9 @@ impl Engine {
         candidate: &Candidate,
     ) -> Option<Vec<sentence::SentenceWord>> {
         let scope = self.composition.scope();
+        if self.nine_key {
+            return self.nine_key_sentence_words(candidate);
+        }
         if self.decode(scope).is_none()
             && let Some(tail) = self.split_english_tail(scope)
             && let Some(words) = self.mixed_words(scope, &tail, &candidate.text)
@@ -512,6 +521,13 @@ impl Engine {
     /// 纠错生效时按纠正后的拼音算，再按那处编辑换算回原串；双拼按解出的全拼算，再换算回键数。
     pub(super) fn consumed_by(&self, candidate: &Candidate) -> (usize, String) {
         let keys = self.composition.scope();
+        // 九宫格：按音节长度消耗，学习键用候选自己的拼音（与全拼共用）
+        if self.nine_key {
+            return (
+                self.nine_key_consumed(candidate),
+                candidate.syllables.concat(),
+            );
+        }
         if let Some(decoded) = self.decode(keys) {
             let pinyin_len = self.align(decoded.pinyin(), &candidate.syllables).consumed;
             return (

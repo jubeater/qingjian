@@ -1,3 +1,5 @@
+<p align="center"><a href="README.md">简体中文</a> | <a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="assets/icon/qingjian-mark.svg" alt="青简竹简图标" height="108">
 </p>
@@ -36,7 +38,7 @@ macOS 与 Windows 版本仍处于测试阶段。安装后先选中青简，在�
 3  架构        architecture
 ```
 
-候选旁一次只显示一种学习语言的译词。目前可以选择英语、日语或西班牙语，也可以关闭译词显示。青简还支持整句输入、简拼、拼写纠错、双拼、五笔等输入方式；本地整句模型会在停顿后调整句子候选。
+候选旁一次只显示一种学习语言的译词。目前可以选择英语、日语、西班牙语、越南语或德语，也可以关闭译词显示。青简还支持整句输入、简拼、拼写纠错、双拼、五笔等输入方式；本地整句模型会在停顿后调整句子候选。
 
 「统计」页还会显示今天、最近 7 天和累计的输入量，以及学习语言的词汇记录。详细用法见[输入功能](https://qingjian.app/docs/input)、[译词与生词](https://qingjian.app/docs/learning/translation)、[本地统计](https://qingjian.app/docs/learning/statistics)和[按键与快捷键](https://qingjian.app/docs/getting-started/keys)。
 

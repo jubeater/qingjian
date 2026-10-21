@@ -3,6 +3,7 @@
 //! 配色 / 字体在 [`theme`]。绘制内容在 [`RenderData`]，一行的展示形态在 [`row`]。设计语言对齐 macOS 端。
 
 mod click;
+mod key_hint;
 mod render_data;
 pub(crate) mod row;
 pub(crate) mod theme;
@@ -26,7 +27,10 @@ use qingjian_platform::Appearance;
 use qingjian_platform::protocol::Frame;
 use qingjian_render::Mode;
 
+use crate::dispatch::KeyHintView;
+
 pub use self::click::CandidateClicks;
+use self::key_hint::KeyHintWindow;
 pub(crate) use self::render_data::RenderData;
 use self::theme::Theme;
 use super::layered::{self, Layered};
@@ -81,6 +85,12 @@ pub(crate) struct CandidateWindow {
 
     /// 最近一次贴图时窗口左上角的屏幕坐标；动画帧贴在同一处。
     position: Cell<(i32, i32)>,
+
+    /// 旁边的键位提示窗口；建不成为 `None`，不显示键位提示。
+    key_hint_window: Option<KeyHintWindow>,
+
+    /// 这一帧要贴的键位提示，`None` 收起。
+    key_hint: RefCell<Option<KeyHintView>>,
 }
 
 impl CandidateWindow {
@@ -114,6 +124,9 @@ impl CandidateWindow {
                 None,
             )?
         };
+        let key_hint_window = KeyHintWindow::new()
+            .inspect_err(|error| tracing::error!(%error, "建键位提示窗口失败，将不显示键位提示"))
+            .ok();
         Ok(Self {
             hwnd,
             data,
@@ -122,12 +135,24 @@ impl CandidateWindow {
             logged_dpi: Cell::new(None),
             painter,
             position: Cell::new((0, 0)),
+            key_hint_window,
+            key_hint: RefCell::new(None),
         })
     }
 
     /// 刷新内容（不定位、不显示）。
-    pub(crate) fn set_content(&self, frame: &Frame, mode: Mode) {
+    pub(crate) fn set_content(&self, frame: &Frame, mode: Mode, key_hint: Option<KeyHintView>) {
         self.data.borrow_mut().set(frame, mode);
+        *self.key_hint.borrow_mut() = key_hint;
+    }
+
+    /// 换了主题：键位提示的渲染器也装上新主题的字体。
+    pub(crate) fn theme_changed(&self) {
+        if let (Some(window), Some(painter)) =
+            (&self.key_hint_window, self.painter.borrow().as_ref())
+        {
+            window.set_theme(painter.theme());
+        }
     }
 
     /// 按光标矩形定位并显示：贴光标下方（放不下放上方），四周留出阴影。
@@ -166,17 +191,46 @@ impl CandidateWindow {
                 self.position.set(position);
                 self.schedule(rendered.next_frame);
                 click::set_hits(rendered.hits.clone(), (content_x, content_y));
-                layered::present(self.hwnd, &rendered.pixmap, position)
+                layered::present(self.hwnd, &rendered.pixmap, position).map(|()| {
+                    Some(RECT {
+                        left: content_x,
+                        top: content_y,
+                        right: content_x + content.0,
+                        bottom: content_y + content.1,
+                    })
+                })
             }
             None => {
                 click::set_hits(Vec::new(), (0, 0));
-                self.show_gdi(anchor)
+                self.show_gdi(anchor).map(|()| None)
             }
         };
-        if updated.is_ok() {
-            let _ = unsafe { ShowWindow(self.hwnd, SW_SHOWNA) };
-        } else {
-            self.hide();
+        match updated {
+            Ok(content) => {
+                let _ = unsafe { ShowWindow(self.hwnd, SW_SHOWNA) };
+                self.show_key_hint(content, anchor);
+            }
+            Err(_) => self.hide(),
+        }
+    }
+
+    /// 候选窗画好之后在它旁边贴键位提示；没有键位提示、或走 GDI 画法（`content` 为 `None`）时收起。
+    fn show_key_hint(&self, content: Option<RECT>, anchor: RECT) {
+        let Some(window) = &self.key_hint_window else {
+            return;
+        };
+        let key_hint = self.key_hint.borrow();
+        let painter = self.painter.borrow();
+        match (key_hint.as_ref(), content, painter.as_ref()) {
+            (Some(view), Some(content), Some(painter)) => window.show(
+                view,
+                painter.theme(),
+                self.dark.get(),
+                self.dpi.get(),
+                content,
+                anchor,
+            ),
+            _ => window.hide(),
         }
     }
 
@@ -206,6 +260,9 @@ impl CandidateWindow {
 
     pub(crate) fn hide(&self) {
         let _ = unsafe { ShowWindow(self.hwnd, SW_HIDE) };
+        if let Some(window) = &self.key_hint_window {
+            window.hide();
+        }
         click::set_hits(Vec::new(), (0, 0));
         self.stop_animation();
         if let Some(painter) = self.painter.borrow_mut().as_mut() {

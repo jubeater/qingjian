@@ -21,10 +21,8 @@ use qingjian_translate::LevelTable;
 
 use crate::encounter_log::{self, ENCOUNTER_LOG_FILE, LoggedEncounter};
 use crate::error::LearningError;
+use crate::usage_stats::figures::recent_start;
 use file::Key;
-
-/// 「最近」算几天（含今天）。
-const RECENT_DAYS: i64 = 7;
 
 /// 文件坏了按行跳过，读不了就只在内存里记（记一次警告），输入不受影响。
 #[derive(Debug, Default)]
@@ -260,7 +258,7 @@ impl VocabularyBook {
 
     /// 以 `today` 为准的汇总（`summary` 以本机今天为准）。
     pub fn summary_on(&self, language: Language, today: Date) -> VocabularySummary {
-        let recent_from = today.saturating_sub(jiff::Span::new().days(RECENT_DAYS - 1));
+        let recent_from = recent_start(today);
         let table = self
             .levels
             .iter()

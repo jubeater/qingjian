@@ -24,6 +24,8 @@ pub enum Message {
     Set(&'static str, &'static str, toml_edit::Value),
     /// 同上，值是字符串数组。
     SetList(&'static str, &'static str, Vec<String>),
+    /// 改当前形码方案的一条按键规则（`[code.<id>] 键 = 值`，id 是 `[general] code` 选的那套）。
+    SetCodeRule(&'static str, bool),
     OpenMenu(Popup),
     /// 关掉弹出菜单（点了菜单外面、按了 Esc）。
     CloseMenu,

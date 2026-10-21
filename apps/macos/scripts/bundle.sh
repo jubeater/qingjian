@@ -84,9 +84,12 @@ cp assets/sample/*.tsv "$APP/Contents/Resources/"
 cp assets/emoji/*.tsv "$APP/Contents/Resources/"
 # 词汇等级表（CEFR-J / Octanove / JLPT，见 assets/levels/README.md），「统计」页按级数词汇
 cp assets/levels/levels-*.tsv "$APP/Contents/Resources/"
-# 五笔码表（输入方案选五笔时用，见 assets/wubi/README.md；极点 86 码表，Apache-2.0）
-mkdir -p "$APP/Contents/Resources/wubi"
-cp assets/wubi/wubi86.tsv "$APP/Contents/Resources/wubi/"
+# 随包形码方案（五笔，见 assets/schemes/wubi86/README.md；极点 86 码表，Apache-2.0）：每套只拷 scheme.toml 与码表
+for scheme in assets/schemes/*/; do
+  name=$(basename "$scheme")
+  mkdir -p "$APP/Contents/Resources/schemes/$name"
+  cp "$scheme"scheme.toml "$scheme"table.tsv "$APP/Contents/Resources/schemes/$name/"
+done
 if [[ -f data/generated/dict.tsv || -f data/generated/dict.qj ]]; then
   # 词库与语言模型打成 .qj（mmap 直接用），TSV 比 .qj 新时重新打包；只有 .qj（CI 从数据包解出来的）就直接用
   if [[ -f data/generated/dict.tsv && ( ! -f data/generated/dict.qj || data/generated/dict.tsv -nt data/generated/dict.qj ) ]]; then
@@ -105,6 +108,11 @@ if [[ -f data/generated/dict.tsv || -f data/generated/dict.qj ]]; then
     cp data/generated/dicts/*.qj "$APP/Contents/Resources/dicts/"
   fi
   [[ -f data/generated/lm.qj ]] && cp data/generated/lm.qj "$APP/Contents/Resources/"
+  # 随包辅码码表（笔画，CNS11643 筆順資料派生，需署名）放 Resources/codes/，与 Windows 的 data\generated\codes 同一份
+  if ls data/generated/codes/*.qj >/dev/null 2>&1; then
+    mkdir -p "$APP/Contents/Resources/codes"
+    cp data/generated/codes/*.qj assets/stroke/LICENSE-CNS11643.txt "$APP/Contents/Resources/codes/"
+  fi
   # 含章·知微（字级 Transformer）：三件套与单文件放 data/models/hanzhang-zhiwei/。
   model_dir="${QINGJIAN_MODEL_DIR:-data/models/hanzhang-zhiwei}"
   if [[ -f "$model_dir/model.safetensors" ]]; then

@@ -103,7 +103,8 @@ fn emoji_follow_their_word_and_consume_its_syllables() {
         3
     );
     let emoji = items[kaifa + 1].clone();
-    assert_eq!(engine.commit(&emoji), "👨‍💻");
+    assert_eq!(engine.commit(&emoji), "");
+    assert_eq!(engine.held_text(), "👨‍💻");
     assert_eq!(engine.composition().text(), "zhe");
 }
 

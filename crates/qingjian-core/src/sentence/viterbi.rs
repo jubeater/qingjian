@@ -8,9 +8,10 @@ use qingjian_dictionary::{Dictionary, Match, SyllablePattern};
 use super::{
     ABBREVIATED_SPAN_CANDIDATES, BEAM_WIDTH, Context, Conversion, LanguageModel,
     MAX_WORD_SYLLABLES, MIN_PARTIAL_LETTERS, Personal, SPAN_CANDIDATES, SentenceWord, SpanCache,
-    SpanWord, fallback_log_prob, transition_log_prob,
+    SpanWord, TONE_PENALTY, fallback_log_prob, transition_log_prob,
 };
 use crate::ranking::weight_bonus;
+use crate::zhuyin::tone;
 
 /// 词库里没有的孤立音节（罕见音节没有单字）按这个 log 概率兜底，让路径总能走通。
 const UNKNOWN_LOG_PROB: f64 = -30.0;
@@ -115,6 +116,7 @@ pub fn convert_with(
         personal,
         weight,
         cost,
+        &[],
         cache,
     )
     .into_iter()
@@ -122,6 +124,7 @@ pub fn convert_with(
 }
 
 /// 得分最高的前 `k` 条路径（最多束宽条，按得分降序，文本相同的只留一条）：给重打分用。
+/// `tones` 是注音每个位置敲的声调（与 `positions` 对齐，可以更短；全拼 / 双拼给空），按 [`TONE_PENALTY`] 给格子选词打折、给路径扣分。
 #[allow(clippy::too_many_arguments)]
 pub fn convert_paths(
     dictionaries: &[&Dictionary],
@@ -132,6 +135,7 @@ pub fn convert_paths(
     personal: Personal<'_>,
     weight: impl Fn(&str) -> u32,
     cost: impl Fn(usize, &str) -> f64,
+    tones: &[Option<u8>],
     cache: &mut SpanCache,
 ) -> Vec<Conversion> {
     let Some((last, head)) = positions.split_last() else {
@@ -184,8 +188,17 @@ pub fn convert_paths(
         let mut any = false;
         for end in start + 1..=n.min(start + MAX_WORD_SYLLABLES) {
             let span = &positions[start..end];
-            let hits = cache.get_or_insert_with(SpanCache::key(span), || {
-                span_candidates(dictionaries, span, start, personal, &weight, &cost)
+            let span_tones = tones.get(start..end).unwrap_or(&[]);
+            let hits = cache.get_or_insert_with(SpanCache::toned_key(span, span_tones), || {
+                span_candidates(
+                    dictionaries,
+                    span,
+                    start,
+                    personal,
+                    &weight,
+                    &cost,
+                    span_tones,
+                )
             });
             if hits.is_empty() {
                 continue;
@@ -206,7 +219,7 @@ pub fn convert_paths(
                     start,
                     text: hit.text.clone(),
                     syllables: hit.syllables.clone(),
-                    score: score + bonus - hit.penalty,
+                    score: score + bonus - hit.penalty - hit.tone,
                     static_score,
                     back,
                     placeholder: false,
@@ -306,6 +319,7 @@ fn span_candidates(
     personal: Personal<'_>,
     weight: &impl Fn(&str) -> u32,
     cost: &impl Fn(usize, &str) -> f64,
+    tones: &[Option<u8>],
 ) -> Vec<SpanWord> {
     let alternatives = span.iter().any(|p| p.len() > 1);
     let penalty_of = |m: &Match<'_>| {
@@ -319,7 +333,7 @@ fn span_candidates(
     };
     // 得分先算好再排：单字母简拼的格子能命中几千条，比较器里每次查两张表会让排序占掉十几毫秒
     // 词频 0 的生僻字不进词图，用户自己选过的除外：`keneng` 按 `ken eng` 切时有了 鞥 就会读出 肯鞥，压过敲错边读出的 可能
-    let mut scored: Vec<(f64, f64, Match<'_>)> = dictionaries
+    let mut scored: Vec<(f64, f64, f64, Match<'_>)> = dictionaries
         .iter()
         .flat_map(|d| d.lookup_exact_alt(span))
         .filter_map(|m| {
@@ -328,12 +342,14 @@ fn span_candidates(
                 return None;
             }
             let penalty = penalty_of(&m);
-            let score = f64::from(m.frequency.max(1)) * (1.0 + f64::from(seen)) * (-penalty).exp();
-            Some((score, penalty, m))
+            let tone = f64::from(tone::cost(m.text, m.syllables(), tones)) * TONE_PENALTY;
+            let score =
+                f64::from(m.frequency.max(1)) * (1.0 + f64::from(seen)) * (-(penalty + tone)).exp();
+            Some((score, penalty, tone, m))
         })
         .collect();
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    scored.dedup_by(|a, b| a.2.text == b.2.text);
+    scored.dedup_by(|a, b| a.3.text == b.3.text);
     let abbreviated = span.iter().any(|p| p.iter().any(|t| !t.complete));
     scored.truncate(if abbreviated {
         ABBREVIATED_SPAN_CANDIDATES
@@ -342,11 +358,12 @@ fn span_candidates(
     });
     scored
         .into_iter()
-        .map(|(_, penalty, hit)| SpanWord {
+        .map(|(_, penalty, tone, hit)| SpanWord {
             text: hit.text.to_owned(),
             syllables: hit.syllables().map(str::to_owned).collect(),
             frequency: hit.frequency,
             penalty,
+            tone,
         })
         .collect()
 }

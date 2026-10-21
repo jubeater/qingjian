@@ -4,7 +4,9 @@
 
 pub(crate) mod builtin;
 mod property;
+mod skin_tone;
 mod table;
 
 pub use property::is_emoji;
+pub use skin_tone::skin_tone_variants;
 pub use table::EmojiTable;

@@ -1,6 +1,7 @@
 //! 快捷候选（搜狗「v 模式」的那一套）：不查词库、由输入本身直接算出来的候选。
 //!
-//! - `rq` / `sj` / `xq`：今天的日期、现在的时间、星期几，插在本地候选第二位起。
+//! - `rq` / `sj` / `xq`：今天的日期、现在的时间、星期几，插在本地候选第二位起；打全拼出了「日期 / 时间 / 星期」
+//!   这几个词（`riqi`、九宫格的 `7474`）时同样跟在这个词后面（[`keyword_forms`]）。
 //! - 表达式键（缺省 `v`）开头进表达式模式：`v1+2` 出 `3` 与 `1+2=3`，`v123` 出中文数字与金额（小写与大写），
 //!   `v123.5` 出小数读法与金额，同样各有小写与大写（一百二十三元五角 / 壹佰贰拾叁元伍角）。
 //!   表达式模式下缓冲区允许数字与运算符，候选不走拼音解析。
@@ -59,6 +60,16 @@ pub fn is_expression_char(c: char) -> bool {
     c.is_ascii_digit() || matches!(c, '+' | '-' | '*' | '/' | '(' | ')' | '.' | '^')
 }
 
+/// 屏幕键盘上的 `c` 在算式里当什么：乘除号（`×` `÷`）换成 `*` `/`，其余算式字符原样，不是算式字符为 `None`。
+pub fn expression_char(c: char) -> Option<char> {
+    let c = match c {
+        '×' => '*',
+        '÷' => '/',
+        c => c,
+    };
+    is_expression_char(c).then_some(c)
+}
+
 /// 按输入算快捷候选；不是快捷输入时为空。`expression` 是表达式键；`now` 由调用方给，测试可固定时间。
 pub fn candidates(input: &str, expression: char, now: &Zoned) -> Vec<Candidate> {
     let texts: Vec<String> = match input {
@@ -70,6 +81,11 @@ pub fn candidates(input: &str, expression: char, now: &Zoned) -> Vec<Candidate> 
             None => Vec::new(),
         },
     };
+    as_candidates(texts)
+}
+
+/// 快捷写法包成候选。
+pub(crate) fn as_candidates(texts: Vec<String>) -> Vec<Candidate> {
     texts
         .into_iter()
         .map(|text| Candidate {
@@ -81,6 +97,16 @@ pub fn candidates(input: &str, expression: char, now: &Zoned) -> Vec<Candidate> 
             aux_code: None,
         })
         .collect()
+}
+
+/// 打全拼出的词是「日期 / 时间 / 星期」时对应的快捷写法，同 `rq` / `sj` / `xq`；别的词为空。
+pub fn keyword_forms(word: &str, now: &Zoned) -> Vec<String> {
+    match word {
+        "日期" => date_forms(now),
+        "时间" => time_forms(now),
+        "星期" => weekday_forms(now),
+        _ => Vec::new(),
+    }
 }
 
 /// 金额最多几位小数（角、分）。
@@ -171,6 +197,14 @@ mod tests {
     }
 
     #[test]
+    fn keyword_shortcuts() {
+        assert_eq!(keyword_forms("日期", &now()), texts("rq"));
+        assert_eq!(keyword_forms("时间", &now()), texts("sj"));
+        assert_eq!(keyword_forms("星期", &now()), texts("xq"));
+        assert!(keyword_forms("日起", &now()).is_empty());
+    }
+
+    #[test]
     fn expression_shortcuts() {
         assert_eq!(texts("v1+2"), ["3", "1+2=3"]);
         assert_eq!(
@@ -206,5 +240,9 @@ mod tests {
         assert!(is_expression_char('('));
         assert!(!is_expression_char('='));
         assert!(!is_expression_char('x'));
+        assert_eq!(expression_char('×'), Some('*'));
+        assert_eq!(expression_char('÷'), Some('/'));
+        assert_eq!(expression_char('3'), Some('3'));
+        assert_eq!(expression_char('='), None);
     }
 }

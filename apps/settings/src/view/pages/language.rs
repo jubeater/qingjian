@@ -8,7 +8,7 @@ use crate::message::Message;
 use crate::support::Feature;
 use crate::view::Page;
 use crate::view::parts::actions::with_notice;
-use crate::view::parts::controls::{choice, toggle, toggle_info};
+use crate::view::parts::controls::{choice, percent_slider, toggle, toggle_info};
 
 /// 全角 / 半角两档，配置里是布尔。
 const WIDTHS: [bool; 2] = [true, false];
@@ -166,8 +166,16 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
             ("status_bar", "enabled"),
             config.status_bar.enabled,
         )?;
+        let size = percent_slider(
+            ui,
+            page,
+            ("状态条大小", ("status_bar", "size")),
+            config.status_bar.size(),
+            (60.0, 150.0),
+            !config.status_bar.enabled,
+        )?;
         out.push(section_title(ui, theme, "状态条")?);
-        out.push(group(ui, theme, &[status])?);
+        out.push(group(ui, theme, &[status, size])?);
     }
     Ok(out)
 }

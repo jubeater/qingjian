@@ -29,4 +29,8 @@ pub enum DictionaryError {
     /// 一份码表里一条可用的码都没有（不是码表文件，或码列全非法）。
     #[error("no usable code entries in this file")]
     NoCodeEntries,
+
+    /// 方案的词码规则写错了（词长不到 2，或公式不是「大写选字 + 小写选码位」成对写）。
+    #[error("invalid word rule: {0}")]
+    InvalidWordRule(String),
 }

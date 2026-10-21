@@ -42,6 +42,11 @@ pub trait App {
         None
     }
 
+    /// 窗口进出前台。用户切到别的应用改了文件再切回来时，可以借这个时机重新读盘。
+    fn set_active(&mut self, active: bool) {
+        let _ = active;
+    }
+
     /// 系统的深浅色变了（开窗时也调一次）。
     fn set_system_dark(&mut self, dark: bool) {
         let _ = dark;

@@ -8,6 +8,7 @@ mod english_tail;
 mod generating;
 mod lookup;
 mod modes;
+mod nine_key;
 mod phonetic;
 mod result;
 mod snapshot;
@@ -46,14 +47,17 @@ impl Engine {
             }
         };
         query.aux = self.aux_segment();
+        query.held = self.held_text();
         // 辅码态只出命中码的词：自定义短语没有码，不出
         if self.aux_filter().is_none() {
             self.insert_custom_phrases(&mut query.candidates.items);
         }
         // 给输入日志留个摘要：上屏时才知道选了什么，这里才知道看到了什么
-        let pinyin = match &query.correction {
-            Some(correction) => correction.segmentation.joined("'"),
-            None => join_marked(&query.segmentations, &query.tail),
+        // 九宫格没有切分，拼音取拼音行（首选读到的写法），云联想也用它问
+        let pinyin = match (&query.correction, &query.typed_display) {
+            (Some(correction), _) => correction.segmentation.joined("'"),
+            (None, Some(display)) if self.nine_key => display.clone(),
+            (None, _) => join_marked(&query.segmentations, &query.tail),
         };
         *self.last_query.borrow_mut() = Some(QuerySnapshot {
             scope: self.composition.scope().to_owned(),
@@ -81,13 +85,17 @@ impl Engine {
         if self.english_mode {
             return Ok(self.query_english(keys, rest, start));
         }
+        // 九宫格的数字不是英文直输段，要赶在原样上屏那条路之前分岔
+        if self.nine_key {
+            return Ok(self.query_nine_key(keys, rest, start));
+        }
         if self.modes().is_expression(keys, self.zhuyin) {
             return Ok(self.query_expression(keys, rest, start));
         }
         if self.modes().is_question(keys, self.zhuyin) {
             return Ok(self.query_question(keys, rest, start));
         }
-        if is_raw(keys, self.modes(), self.shuangpin, self.zhuyin) {
+        if is_raw(keys, self.modes(), self.shuangpin.as_deref(), self.zhuyin) {
             return Ok(self.query_raw(keys, rest, start));
         }
         // 形码与拼音是两条平行的管线，在进切分之前分岔。放在这里是为了让 `?` 问字与

@@ -43,4 +43,19 @@ impl CandidateKind {
     pub fn follows_word(self) -> bool {
         matches!(self, Self::Emoji | Self::Kaomoji | Self::Symbol)
     }
+
+    /// 删得掉的（[`crate::Engine::forget`]）：中文词、码表词、云端词删用户词与学习记录，英文词删个人英文词；
+    /// 整句、快捷候选、自定义短语、emoji 这些没什么可删，壳不必给删除入口。
+    pub fn forgettable(self) -> bool {
+        match self {
+            Self::Chinese | Self::Code | Self::Cloud | Self::English => true,
+            Self::Shortcut
+            | Self::Custom(_)
+            | Self::Emoji
+            | Self::Kaomoji
+            | Self::Symbol
+            | Self::Sentence
+            | Self::Generated => false,
+        }
+    }
 }

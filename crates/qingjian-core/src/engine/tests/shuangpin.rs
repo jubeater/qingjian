@@ -86,7 +86,7 @@ fn shuangpin_commit_consumes_keys_per_syllable() {
         .unwrap();
     engine.commit(&kaifa);
     assert_eq!(engine.composition().text(), "ve");
-    assert_eq!(engine.query().unwrap().marked_text(), "zhe");
+    assert_eq!(engine.query().unwrap().marked_text(), "开发zhe");
     // 未打完的最后一个键也被候选吃掉
     engine.set_input("kdf");
     let kaifang = engine.query().unwrap().candidates.items[0].clone();

@@ -16,15 +16,16 @@ mod rescoring;
 mod tuning;
 mod userwords;
 
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
 use clap::Parser;
-use qingjian_core::{EmojiTable, Engine, FuzzyRules, Language};
+use qingjian_core::{CodeScheme, EmojiTable, Engine, FuzzyRules, Language, ShuangpinLayout};
 use qingjian_dictionary::{AuxCodeLookup, AuxCodeTable, CodeTable, Dictionary, WordList};
 use qingjian_learning::FrequencyLearner;
 use qingjian_lm::BigramModel;
-use qingjian_platform::{Config, Scheme};
+use qingjian_platform::{Config, Scheme, code_schemes, shuangpin_schemes};
 use qingjian_predict::CloudPredictor;
 use qingjian_translate::Glossary;
 
@@ -62,7 +63,7 @@ fn run() -> Result<(), CliError> {
     // 查码：只看码表，不查词、不进交互
     if !args.aux_query.is_empty() {
         for word in &args.aux_query {
-            let codes: Vec<&str> = engine
+            let codes: Vec<_> = engine
                 .aux_codes()
                 .iter()
                 .flat_map(|table| table.codes_of(word))
@@ -86,8 +87,9 @@ fn run() -> Result<(), CliError> {
     if let Some(path) = &args.replay {
         // 日志里形码那些行也要能重放：回放按每条的方案切引擎，所以它自己得留一份码表
         // （`build_engine` 那份的所有权已经交给引擎了）
-        let code_table = args.wubi.as_ref().map(CodeTable::from_path).transpose()?;
-        let report = replay::run(&mut engine, path, args.misses, code_table)?;
+        let code = args.code.as_deref().map(load_code_scheme).transpose()?;
+        let shuangpin = load_shuangpin_scheme(&args)?;
+        let report = replay::run(&mut engine, path, args.misses, code, shuangpin)?;
         print!("{report}");
         return Ok(());
     }
@@ -129,6 +131,31 @@ fn run() -> Result<(), CliError> {
 }
 
 /// 组装 Engine：这是 Core 之外唯一知道具体 Translator / Learner 类型的地方。
+/// `--code` 给的形码：目录按方案读（`scheme.toml` 的规则照用），文件当 86 五笔的码表、规则全关。
+fn load_code_scheme(path: &Path) -> Result<CodeScheme, CliError> {
+    if path.is_dir() {
+        let entry =
+            code_schemes::from_dir(path).ok_or_else(|| CliError::CodeScheme(path.to_owned()))?;
+        return Ok(entry.load()?);
+    }
+    Ok(CodeScheme::new("wubi", CodeTable::from_path(path)?))
+}
+
+/// `--shuangpin` 给的是目录时按用户双拼方案读；给的是方案写法（`xiaohe`）时为 `None`。
+fn load_shuangpin_scheme(args: &Args) -> Result<Option<Arc<ShuangpinLayout>>, CliError> {
+    let Some(path) = args
+        .shuangpin
+        .as_deref()
+        .map(Path::new)
+        .filter(|path| path.is_dir())
+    else {
+        return Ok(None);
+    };
+    let entry = shuangpin_schemes::from_dir(path)
+        .ok_or_else(|| CliError::ShuangpinScheme(path.to_owned()))?;
+    Ok(Some(entry.layout))
+}
+
 fn build_engine(args: &Args) -> Result<Engine, CliError> {
     let language: Language = args
         .language
@@ -178,6 +205,8 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
     let mut engine = Engine::new(dictionary)
         .with_translator(Box::new(glossary))
         .with_learner(Box::new(learner));
+    // 回放按日志逐键重喂：日志里选词之后的退格删的是字母，不是撤回选择
+    engine.set_hold_selections(false);
     if !args.extra_dict.is_empty() {
         let mut extras = Vec::new();
         for path in &args.extra_dict {
@@ -316,34 +345,49 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
     engine.set_traditional(config.general.traditional());
     engine.set_fuzzy(config.fuzzy);
     engine.set_mode_keys(config.shortcut.mode);
-    // `--shuangpin` 现在写的是 [general] scheme（同一个维度的旧键已经并进去），off 就是全拼
-    if let Some(scheme) = &args.shuangpin {
+    // `--shuangpin` 写的是 [general] scheme，off 就是全拼
+    let custom = load_shuangpin_scheme(args)?;
+    if let Some(scheme) = args.shuangpin.as_ref().filter(|_| custom.is_none()) {
         config.general.scheme = if scheme == "off" {
             Scheme::Pinyin.key().to_owned()
         } else {
             scheme.clone()
         };
     }
-    // 两条轴：拼音侧看 `[general] scheme`，形码侧看 `[general] wubi`；`--wubi` 给了码表就算开着形码。
+    // 两条轴：拼音侧看 `[general] scheme`，形码侧看 `[general] code`；`--code` 给了码表就算开着形码。
     // 两边都开就是混输，见 docs/user/input/fuzzy-and-shuangpin.md
-    let scheme = config.general.scheme();
-    let wubi = config.general.wubi() || args.wubi.is_some();
-    tracing::info!(pinyin = scheme.key(), wubi, "输入方案已启用");
-    engine.set_shuangpin(scheme.shuangpin());
+    let scheme = if custom.is_some() {
+        Scheme::Custom
+    } else {
+        config.general.scheme()
+    };
+    let code = config.general.code().is_some() || args.code.is_some();
+    tracing::info!(pinyin = scheme.key(), code, "输入方案已启用");
+    match custom {
+        Some(layout) => engine.set_shuangpin_layout(Some(layout)),
+        None => engine.set_shuangpin(scheme.shuangpin()),
+    }
     engine.set_zhuyin_mode(scheme == Scheme::Zhuyin);
+    engine.set_nine_key(args.nine_key);
     // 拼音侧关掉且形码开着才是「只用形码」；两边都关着时留拼音兜底
-    engine.set_phonetic(scheme.is_on() || !wubi);
-    // 形码的码表由 `--wubi` 显式给（方案本身只说「用哪套」，码表文件在哪由壳决定）
-    if let Some(path) = &args.wubi {
-        engine.set_code_table(Some(CodeTable::from_path(path)?));
-        tracing::info!(table = %path.display(), "形码码表已载入");
+    engine.set_phonetic(scheme.is_on() || !code);
+    // 形码的码表由 `--code` 显式给（配置只说「用哪套」，码表文件在哪由壳决定）
+    if let Some(path) = &args.code {
+        engine.set_code_scheme(Some(load_code_scheme(path)?));
+        tracing::info!(table = %path.display(), "形码方案已载入");
     }
     engine.set_aux_code_key(config.general.aux_code_key(), config.general.page_keys());
     engine.set_aux_keep_empty(config.general.aux_code_keep_empty);
     if !args.aux_table.is_empty() {
         let mut tables: Vec<Arc<dyn AuxCodeLookup>> = Vec::new();
         for path in &args.aux_table {
-            let table = AuxCodeTable::from_path(path)?;
+            let table = if path.is_dir() {
+                let scheme = qingjian_platform::aux_schemes::from_dir(path)
+                    .ok_or_else(|| CliError::AuxScheme(path.to_owned()))?;
+                AuxCodeTable::from_path(&scheme.table)?.with_word_rules(scheme.words)
+            } else {
+                AuxCodeTable::from_path(path)?
+            };
             tracing::info!(
                 path = %path.display(),
                 entries = table.len(),

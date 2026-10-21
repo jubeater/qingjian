@@ -3,12 +3,12 @@
 use qingjian_platform::protocol::{Frame, ScreenRect};
 use qingjian_render::Mode;
 
-use crate::dispatch::{PanelFrame, RenderSettings, StatusView};
+use crate::dispatch::{KeyHintView, PanelFrame, RenderSettings, StatusView};
 
 /// 交给 UI 线程执行的命令。`Frame` 较大，装箱免得枚举过胖。
 pub(super) enum UiCommand {
-    /// 把候选窗口摆到组句矩形下方并按帧重绘。
-    Show(Box<(Frame, Mode, ScreenRect)>),
+    /// 把候选窗口摆到组句矩形下方并按帧重绘；带着键位提示就在旁边贴上键盘。
+    Show(Box<(Frame, Mode, ScreenRect, Option<KeyHintView>)>),
 
     /// 收起候选窗口。
     Hide,

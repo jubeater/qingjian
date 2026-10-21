@@ -1,9 +1,11 @@
 //! 呈现：删候选、按应用关英文候选、翻译选区的起止、提示气泡、会话重置与候选窗口绘制。
 
+mod key_hint;
 mod notice;
 mod panel;
 mod translation_job;
 
+pub(super) use key_hint::KeyHintState;
 pub(super) use notice::Notice;
 pub use translation_job::TranslationJob;
 
@@ -39,7 +41,7 @@ impl Host {
             result: None,
         });
         self.reset_session(None, vec![cloud_candidate("翻译中…".to_owned())]);
-        self.await_prediction();
+        self.await_prediction(None);
         self.render();
     }
 
@@ -93,6 +95,7 @@ impl Host {
             self.render_panel();
             return;
         }
+        let keyboard = self.key_hint_keyboard();
         let size = self.session.layout.page_size();
         let page = self.session.page;
         // 横排展开成矩阵时画视口里的几行，序号只标在高亮所在那一行（数字键选的就是它）；单行时只画当前页
@@ -118,11 +121,17 @@ impl Host {
                         // 矩阵里的空位什么都不画；单行里的空位留着序号
                         index: if columns == 0 { index } else { String::new() },
                         text: String::new(),
+                        code: None,
                         annotation: Vec::new(),
                         cloud: false,
                     };
                 };
-                let mut row = Row::from_candidate(offset, candidate, self.translation_pos);
+                let mut row = Row::from_candidate(
+                    offset,
+                    candidate,
+                    self.translation_pos,
+                    self.aux_code_show,
+                );
                 row.index = index;
                 row.cloud = candidate.kind == CandidateKind::Cloud;
                 row
@@ -158,6 +167,7 @@ impl Host {
             status: self.status.clone(),
             mode: self.input_mode(),
             panel: None,
+            keyboard,
         };
         self.window.show(frame, self.anchor);
     }
@@ -170,7 +180,7 @@ impl Host {
             english,
             traditional: general.traditional() != TraditionalVariant::Off,
             full_width: !english && general.full_width_punctuation,
-            scheme: qingjian_platform::scheme_name(general.scheme(), general.wubi()),
+            scheme: self.scheme_slot.scheme_name(general.scheme()),
         }
     }
 }

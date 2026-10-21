@@ -100,14 +100,14 @@ pub fn words(
     Ok(out)
 }
 
-/// 「英语 · 生词 40 个，认识了 12 个，本周新见 8 个」
+/// 「英语 · 生词 40 个，认识了 12 个，近 7 天新见 8 个」
 fn summary_line(book: &Vocabulary) -> String {
     let summary = book.summary();
     if summary.seen == 0 {
         return format!("{}：还没有记录", book.language_name());
     }
     format!(
-        "{}：共 {} 个词，生词 {} 个，本周新见 {} 个",
+        "{}：共 {} 个词，生词 {} 个，近 7 天新见 {} 个",
         book.language_name(),
         group_digits(summary.seen),
         group_digits(summary.seen - summary.familiar),

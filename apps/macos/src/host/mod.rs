@@ -5,6 +5,7 @@
 //! 配置只有一条通路：[`Host::apply_config`] 把当前 `Config` 推给 Engine 与界面。启动、菜单开关、
 //! 设置窗口、手改文件被监视到，全都走它；三个入口都只写 `config.toml`，不各存一套状态。
 
+mod aux_code;
 mod cloud;
 mod config;
 mod diagnostics;
@@ -26,13 +27,14 @@ use qingjian_core::{
     NoGlossFiller, NoInputLogger, NoPredictor, NoTranslator, Prediction,
 };
 use qingjian_dictionary::{Dictionary, WordList};
-use qingjian_learning::{FrequencyLearner, InputLog, UsageStats, VocabularyBook};
+use qingjian_learning::{FrequencyLearner, InputLog, PanelUsage, UsageStats, VocabularyBook};
 use qingjian_lm::BigramModel;
 use qingjian_platform::extra_dictionaries;
 use qingjian_platform::{
-    Appearance, AppsConfig, CandidateRenderer, DEFAULT_ENGLISH_CANDIDATES_ON, DictionariesConfig,
-    GeneralConfig, HighlightKeys, KeyCombo, LEARNING_LANGUAGE_OFF, LayoutMode, LocalModelConfig,
-    LogLevel, Modifiers, PAGE_KEY_OPTIONS, PreeditMode, Scheme, ShortcutConfig, UpdateChannel,
+    Appearance, AppsConfig, AuxCodeConfig, CandidateRenderer, DEFAULT_ENGLISH_CANDIDATES_ON,
+    DictionariesConfig, GeneralConfig, HighlightKeys, KeyCombo, KeyHintMode, LEARNING_LANGUAGE_OFF,
+    LayoutMode, LocalModelConfig, LogLevel, Modifiers, PAGE_KEY_OPTIONS, PageKeys, PreeditMode,
+    Scheme, ShortcutConfig, UpdateChannel,
 };
 use qingjian_predict::{
     API_USAGE_FILE, CloudGlossFiller, CloudPredictor, ConnectionTest, PredictConfig, PredictError,
@@ -51,8 +53,8 @@ use config::{ConfigWatch, TextReplacement};
 pub use dictionaries::DictionaryInfo;
 pub use init::init;
 use model::RescoreMonitor;
-use presenting::Notice;
 pub use presenting::TranslationJob;
+use presenting::{KeyHintState, Notice};
 pub use session::Session;
 
 pub struct Host {
@@ -89,6 +91,15 @@ pub struct Host {
     /// 附加词库是按哪份 `[dictionaries]` 装的；开关变了才重新加载。
     applied_dictionaries: DictionariesConfig,
 
+    /// 辅码码表是按哪份 `[aux_code]` 装的；还没装过为 `None`。
+    applied_aux_code: Option<AuxCodeConfig>,
+
+    /// 上次装码表时用户 `codes/` 与 `schemes/` 的文件快照：设置程序导入或改了方案，下一次看配置时就重装。
+    aux_files: Vec<(PathBuf, Option<std::time::SystemTime>, u64)>,
+
+    /// 候选词后面带上辅码（配置 `[general] aux_code_show`）。
+    pub aux_code_show: bool,
+
     /// 偏好设置「词库」页显示的列表，勾选框 / 移除按钮的下标对着它。
     dictionary_list: Vec<DictionaryInfo>,
 
@@ -113,8 +124,14 @@ pub struct Host {
     /// 翻页键对（上一页、下一页）。
     pub page_keys: (char, char),
 
+    /// 和主翻页键一起用的额外翻页键（配置 `[shortcut] extra_page_keys`）。
+    pub extra_page_keys: PageKeys,
+
     /// 组句中敲会转全角的标点先把高亮候选上屏、再补该标点（配置 `[general] punct_commits`，缺省关）。
     pub punct_commits: bool,
+
+    /// 装着的形码方案（名字给主题显示），配置没动它时不重读码表。
+    pub scheme_slot: qingjian_platform::SchemeSlot,
 
     /// 配数字键上屏第一 / 第二个译词的修饰键组合（配置 `[shortcut] translation` / `translation_second`）。
     pub translation_keys: (Modifiers, Modifiers),
@@ -131,11 +148,29 @@ pub struct Host {
     /// 翻译选中文字的快捷键（配置 `[shortcut] translate_selection`）。
     pub translate_keys: KeyCombo,
 
+    /// 切换全半角标点的组合键（配置 `[shortcut] toggle_punctuation`，缺省没有）。
+    pub punctuation_keys: Option<KeyCombo>,
+
+    /// 组句中按需联想的组合键（配置 `[shortcut] predict`）。
+    pub predict_keys: KeyCombo,
+
+    /// 在飞的按需联想请求序号：结果到了排在第一页最前面，自动联想的照旧补在末尾。
+    manual_prediction: Option<u64>,
+
     /// 进行中的「翻译选中文字」；有它时候选窗口显示的是译文（或「翻译中…」），按键先归它处理。
     pub translation: Option<TranslationJob>,
 
     /// 正在显示的提示（候选窗口里一行字，几秒后自动收）。
     pub notice: Option<Notice>,
+
+    /// 双拼键位提示什么时候弹出（配置 `[general] key_hint`）。
+    pub key_hint_mode: KeyHintMode,
+
+    /// 「卡住时显示」的停顿计时与这一段组句里弹没弹过。
+    key_hint: KeyHintState,
+
+    /// 五笔字根图换成的键盘，第一次画时建好（字形解析一次）。
+    root_keyboard: Option<qingjian_render::Keyboard>,
 
     /// 组句中的拼音显示在行内、候选窗口还是两处。
     pub preedit_mode: PreeditMode,

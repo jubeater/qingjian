@@ -30,8 +30,7 @@ pub fn dictionaries(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Re
             page,
             Kind::Dictionary,
             entry,
-            config.is_enabled(&entry.stem),
-            toggle,
+            Some((config.is_enabled(&entry.stem), toggle)),
             true,
         )?);
     }

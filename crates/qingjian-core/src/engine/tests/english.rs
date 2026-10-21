@@ -78,6 +78,26 @@ fn usage_meter_counts_hanzi_words_and_english_words_per_commit() {
 }
 
 #[test]
+fn unmetered_commits_are_not_counted_and_do_not_leak_keys() {
+    let recorded = Arc::new(Mutex::new(Vec::new()));
+    let mut engine = engine().with_usage_meter(Box::new(MemoryMeter(recorded.clone())));
+    // 壳的工具框（快捷翻译的原文）里打的不算
+    engine.set_metered(false);
+    engine.set_input("kaifa");
+    let kaifa = engine.query().unwrap().candidates.items[0].clone();
+    engine.commit(&kaifa);
+    assert!(recorded.lock().unwrap().is_empty());
+    // 回到应用里接着打：键数只算这一段的
+    engine.set_metered(true);
+    engine.set_input("kaifa");
+    let again = engine.query().unwrap().candidates.items[0].clone();
+    engine.commit(&again);
+    let recorded = recorded.lock().unwrap();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].keys, 5);
+}
+
+#[test]
 fn english_word_yields_to_a_chinese_word_the_user_keeps_choosing() {
     let dictionary = Dictionary::parse("可以\tke yi\t9000\n客运\tke yun\t100\n").unwrap();
     let mut engine = Engine::new(dictionary)

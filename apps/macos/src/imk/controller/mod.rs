@@ -261,6 +261,27 @@ impl QingjianInputController {
         {
             return self.translate_selection(client);
         }
+        // 按需联想键（`[shortcut] predict`，缺省 ⌃⌥J）：组句中立刻请求一次，结果排在第一页最前面
+        let predict = host::with(|h| h.predict_keys).unwrap_or_default();
+        if pressed == predict.modifiers
+            && typed.as_deref().and_then(|t| t.chars().next()) == Some(predict.key)
+            && host::with(|h| !h.engine.composition().is_empty() && h.engine.prediction_enabled())
+                .unwrap_or(false)
+        {
+            let candidates = host::with(|h| h.session.layout.local().to_vec()).unwrap_or_default();
+            self.request_prediction(client, &candidates, true);
+            return true;
+        }
+        // 标点切换键（`[shortcut] toggle_punctuation`，设置程序里勾上是 Ctrl + .）：切的是中文模式的标点，
+        // 英文模式一律半角，这时键照常交给应用
+        if let Some(combo) = host::with(|h| h.punctuation_keys).flatten()
+            && pressed == combo.modifiers
+            && typed.as_deref().and_then(|t| t.chars().next()) == Some(combo.key)
+            && !modifiers::caps_lock_on()
+        {
+            host::with(|h| h.toggle_punctuation());
+            return true;
+        }
         // 修饰键 + 数字：按配置的两组组合上屏第一 / 第二个译词（缺省 ⌥ 与 ⇧⌥）、删候选（缺省 ⇧）。
         // 只在组句中认：不在组句时 ⇧4 就是 `$`，得走下面的标点转换（中文模式出 ￥、⇧6 出 ……、⇧1 出 ！），
         // 以前在这里被截走后原样还给应用，全角转换就没机会做了。

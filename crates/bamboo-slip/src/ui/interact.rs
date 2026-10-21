@@ -9,6 +9,9 @@ type KeyHandler<M> = Box<dyn Fn(&KeyPress) -> Option<M>>;
 
 type TextHandler<M> = Box<dyn Fn(&TextInput) -> Option<M>>;
 
+/// 拖动：指针在元素里的横向位置（0 为左边、1 为右边，出界夹到两头）。
+type DragHandler<M> = Box<dyn Fn(f32) -> Option<M>>;
+
 /// 什么都不设也有用：元素会记悬停状态。
 pub struct Interact<M> {
     pub(super) click: Option<M>,
@@ -16,6 +19,8 @@ pub struct Interact<M> {
     pub(super) key: Option<KeyHandler<M>>,
 
     pub(super) text: Option<TextHandler<M>>,
+
+    pub(super) drag: Option<DragHandler<M>>,
 
     /// 焦点离开它时的消息。
     pub(super) blur: Option<M>,
@@ -40,6 +45,7 @@ impl<M> Interact<M> {
             click: None,
             key: None,
             text: None,
+            drag: None,
             blur: None,
             focusable: false,
             disabled: false,
@@ -68,6 +74,14 @@ impl<M> Interact<M> {
         Self {
             text: Some(Box::new(handler)),
             focusable: true,
+            ..self
+        }
+    }
+
+    /// 按下与按住拖动（滑块）：按下时捕获指针，之后每次移动都交给它，移出元素也算，抬起为止。
+    pub fn on_drag(self, handler: impl Fn(f32) -> Option<M> + 'static) -> Self {
+        Self {
+            drag: Some(Box::new(handler)),
             ..self
         }
     }
@@ -104,6 +118,10 @@ impl<M> Interact<M> {
     /// 能接点击：有点击消息且没禁用。
     pub(super) fn clickable(&self) -> bool {
         self.click.is_some() && !self.disabled
+    }
+
+    pub(super) fn draggable(&self) -> bool {
+        self.drag.is_some() && !self.disabled
     }
 
     pub(super) fn takes_focus(&self) -> bool {

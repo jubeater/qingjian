@@ -11,6 +11,7 @@
 //! `dicts/<领域>.tsv` 与带元数据的 `dicts/<领域>.qj`，随包分发、缺省关闭，用户按需打开。基础词库与各领域词库互不重叠。
 
 mod annotations;
+mod char_tones;
 mod corpus;
 mod entry;
 pub(crate) mod pack;
@@ -28,6 +29,8 @@ use qingjian_format::Metadata;
 use crate::error::ConvertError;
 use entry::LexiconEntry;
 use pack::Pack;
+
+pub use char_tones::convert as char_tones;
 use readings::CharReadings;
 
 /// 领域词最长几个字：再长是法规名、诗句，输入法用不上。

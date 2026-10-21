@@ -1,5 +1,7 @@
 //! 拼音侧的候选生成：切分、拼写纠错、词级查找与排序，再补上整句、英文、快捷与 emoji 候选。
 
+use std::borrow::Cow;
+
 use super::*;
 
 impl Engine {
@@ -54,8 +56,10 @@ impl Engine {
                     decoded_keys: self.shuangpin.is_some() || self.zhuyin,
                     shuangpin_raw_preedit: self.shuangpin.is_some() && self.shuangpin_raw_preedit,
                     typed_display: decoded.as_ref().map(|d| d.marked()),
+                    pinyin_choices: Vec::new(),
                     correction: None,
                     aux: None,
+                    held: String::new(),
                     timings: Timings {
                         parse: start.elapsed(),
                         lookup: Duration::ZERO,
@@ -77,6 +81,11 @@ impl Engine {
             None => (segmentations, tail),
         };
         let parse = start.elapsed();
+        // 注音每个音节敲的声调：词库不带调，查词照旧，只在排序里把对不上的字词往后放。纠错换了切分时不比
+        let tones = match (&decoded, &correction) {
+            (Some(d), None) => d.tones(),
+            _ => Vec::new(),
+        };
 
         let start = Instant::now();
         let mut scored = Vec::new();
@@ -108,6 +117,7 @@ impl Engine {
                     abbreviated,
                     weight: self.learner.weight(hit.text),
                     penalty: expanded.penalty(hit.syllables()),
+                    tone_cost: crate::zhuyin::tone::cost(hit.text, hit.syllables(), &tones),
                 });
             }
             // 输入的前缀也出候选（`kaifazhe` → 开发、开），否则长句没法逐词上屏。
@@ -132,6 +142,7 @@ impl Engine {
                         abbreviated,
                         weight: self.learner.weight(hit.text),
                         penalty: expanded.penalty(hit.syllables()),
+                        tone_cost: crate::zhuyin::tone::cost(hit.text, hit.syllables(), &tones),
                     });
                 }
             }
@@ -175,10 +186,10 @@ impl Engine {
                 } else {
                     None
                 };
-                chinese_candidate(&item, first)
+                chinese_candidate(&item, first.as_deref())
             })),
             Some(code) => {
-                let mut kept: Vec<(usize, &str)> = scored
+                let mut kept: Vec<(usize, Cow<'_, str>)> = scored
                     .iter()
                     .enumerate()
                     .filter_map(|(index, item)| {
@@ -193,7 +204,7 @@ impl Engine {
                 });
                 items.extend(
                     kept.into_iter()
-                        .map(|(index, hit)| chinese_candidate(&scored[index], Some(hit))),
+                        .map(|(index, hit)| chinese_candidate(&scored[index], Some(&hit))),
                 );
             }
         }
@@ -222,6 +233,7 @@ impl Engine {
             // 快捷候选按敲的键认（`rq` 日期），双拼下也是
             self.insert_shortcuts(&mut items, keys);
             self.insert_emoji(&mut items);
+            self.insert_keyword_shortcuts(&mut items);
         }
         let rank = start.elapsed();
 
@@ -245,8 +257,10 @@ impl Engine {
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: self.shuangpin.is_some() && self.shuangpin_raw_preedit,
             typed_display,
+            pinyin_choices: Vec::new(),
             correction,
             aux: self.aux_segment(),
+            held: String::new(),
             timings: Timings {
                 parse,
                 lookup,

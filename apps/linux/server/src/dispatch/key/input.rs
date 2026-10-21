@@ -313,7 +313,8 @@ impl Router {
                 || self.engine.question_mode()
                 || (self.config.punct_commits && punctuation::converts(c)))
         {
-            let committed = self.commit_highlighted();
+            // 高亮候选没吃完拼音时它留在组句里：连同前面留着的先交给应用，标点才接得在后面
+            let committed = self.commit_highlighted() + &self.engine.take_held();
             let effect = self.apply_punctuation(c, event);
             return with_prefix(Some(committed), effect, c);
         }

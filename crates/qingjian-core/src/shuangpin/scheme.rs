@@ -1,14 +1,14 @@
 use std::fmt;
 use std::str::FromStr;
 
-use qingjian_dictionary::canonical_syllable;
+use std::sync::LazyLock;
+
 use serde::{Deserialize, Serialize};
 
 use super::table::Table;
-use super::{Decoded, Unit, table};
-use crate::fuzzy::FuzzyRules;
+use super::{Decoded, Layout, table};
+#[cfg(test)]
 use crate::parser;
-use qingjian_dictionary::SyllablePattern;
 
 /// 双拼方案。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -100,176 +100,51 @@ impl Scheme {
         }
     }
 
+    /// 这套方案的键位。
+    pub fn layout(self) -> &'static Layout {
+        let index = Self::ALL.iter().position(|scheme| *scheme == self);
+        &BUILTIN[index.unwrap_or_default()]
+    }
+
     /// 这套方案是否用到 `;` 键。
     pub fn uses_semicolon(self) -> bool {
-        self.table().semicolon
+        self.layout().uses_semicolon()
     }
 
-    /// `c` 是不是这套方案的键：小写字母，微软 / 搜狗 / 紫光再加 `;`。
+    /// 见 [`Layout::is_key`]。
     pub fn is_key(self, c: char) -> bool {
-        c.is_ascii_lowercase() || (c == ';' && self.uses_semicolon())
+        self.layout().is_key(c)
     }
 
-    /// 键 `key` 当声母时是什么：翘舌声母按方案映射，其他辅音（含 y w）是自己，元音键与 `;` 不是声母。
+    /// 见 [`Layout::initial`]。
     pub fn initial(self, key: char) -> Option<&'static str> {
-        if let Some((_, initial)) = self
-            .table()
-            .digraph_initials
-            .iter()
-            .find(|(k, _)| *k == key)
-        {
-            return Some(initial);
-        }
-        parser::INITIALS
-            .iter()
-            .copied()
-            .find(|initial| initial.len() == 1 && initial.starts_with(key))
+        self.layout().initial(key)
     }
 
-    /// 键 `key` 当韵母时的候选韵母（按优先级）。
-    pub fn finals(self, key: char) -> &'static [&'static str] {
-        self.table()
-            .finals
-            .iter()
-            .find(|(k, _)| *k == key)
-            .map_or(&[], |(_, finals)| finals)
+    /// 见 [`Layout::finals`]。
+    pub fn finals(self, key: char) -> &'static [String] {
+        self.layout().finals(key)
     }
 
-    /// 两个键拼成的音节；拼不出合法音节时为 `None`。
+    /// 见 [`Layout::syllable`]。
     pub fn syllable(self, first: char, second: char) -> Option<String> {
-        let pair = [first, second];
-        for (syllable, spellings) in self.table().zero_initials {
-            if spellings.iter().any(|s| s.chars().eq(pair.iter().copied())) {
-                return Some((*syllable).to_owned());
-            }
-        }
-        let initial = self.initial(first)?;
-        // jv / qv 这类全拼键盘别名也是合法音节，解码结果统一成词库写法
-        let valid: Vec<String> = self
-            .finals(second)
-            .iter()
-            .map(|final_| format!("{initial}{final_}"))
-            .filter(|syllable| parser::is_syllable(syllable))
-            .collect();
-        valid
-            .iter()
-            .find(|syllable| !parser::RARE_SYLLABLES.contains(&syllable.as_str()))
-            .or(valid.first())
-            .map(|syllable| canonical_syllable(syllable).to_owned())
-            .or_else(|| {
-                // ü 在 j / q / x / y 后写作 u；同键已有的合法音节仍优先。
-                (matches!(initial, "j" | "q" | "x" | "y") && self.finals(second).contains(&"v"))
-                    .then(|| format!("{initial}u"))
-            })
+        self.layout().syllable(first, second)
     }
 
-    /// 一个全拼音节的主写法（两个键）。测试与文档用；拆成声母 + 韵母后查表，零声母查零声母表。
-    ///
-    /// 入参接受全拼键盘别名（`jv`、`jve` 等）。先按原写法编码，保留首道等方案里
-    /// `lue`/`nue` 与 `lve`/`nve` 的故意分键；原写法查不到键位时（如 j/q/x/y 后的
-    /// `van`/`vn`，#531），再归一到主写法重试。
+    /// 见 [`Layout::encode`]。
     pub fn encode(self, syllable: &str) -> Option<[char; 2]> {
-        self.encode_spelling(syllable)
-            .or_else(|| self.encode_spelling(canonical_syllable(syllable)))
+        self.layout().encode(syllable)
     }
 
-    /// 按给定拼写查两键编码，不做键盘别名归一。
-    fn encode_spelling(self, syllable: &str) -> Option<[char; 2]> {
-        let table = self.table();
-        if let Some((_, spellings)) = table.zero_initials.iter().find(|(s, _)| *s == syllable) {
-            let mut chars = spellings[0].chars();
-            return Some([chars.next()?, chars.next()?]);
-        }
-        let initial = parser::INITIALS
-            .iter()
-            .filter(|initial| syllable.starts_with(*initial))
-            .max_by_key(|initial| initial.len())?;
-        let final_ = &syllable[initial.len()..];
-        let first = table
-            .digraph_initials
-            .iter()
-            .find(|(_, i)| i == initial)
-            .map(|(key, _)| *key)
-            .or_else(|| initial.chars().next())?;
-        let second = table
-            .finals
-            .iter()
-            .find(|(_, finals)| finals.contains(&final_))
-            .map(|(key, _)| *key)?;
-        Some([first, second])
-    }
-
-    /// 把敲的键翻成全拼。两键一组从左到右配对；配不出合法音节的位置起全部原样留作尾巴；
-    /// 末尾落单的一键当声母（或元音）前缀；用户自己敲的 `'` 结束当前配对。
+    /// 见 [`Layout::decode`]。
     pub fn decode(self, keys: &str) -> Decoded {
-        self.decode_fuzzy(keys, FuzzyRules::default())
-    }
-
-    /// 模糊音能补成合法音节时保留原读音，供查询展开与上屏消耗共用。
-    /// 普通解码优先，关闭模糊音时行为与 [`Self::decode`] 一致。
-    pub(crate) fn decode_fuzzy(self, keys: &str, fuzzy: FuzzyRules) -> Decoded {
-        let chars: Vec<char> = keys.chars().collect();
-        let mut units = Vec::with_capacity(chars.len() / 2 + 1);
-        let mut index = 0;
-        while index < chars.len() {
-            let first = chars[index];
-            if first == '\'' {
-                units.push(Unit::separator());
-                index += 1;
-                continue;
-            }
-            let second = chars.get(index + 1).copied().filter(|c| *c != '\'');
-            let unit = match second {
-                Some(second) => self
-                    .syllable(first, second)
-                    .or_else(|| {
-                        if !fuzzy.any() {
-                            return None;
-                        }
-                        let initial = self.initial(first)?;
-                        self.finals(second).iter().find_map(|final_| {
-                            let raw = format!("{initial}{final_}");
-                            let expanded = fuzzy.expand(&[SyllablePattern::complete(&raw)]);
-                            expanded.has_alternatives().then_some(raw)
-                        })
-                    })
-                    .map(|pinyin| Unit {
-                        keys: [first, second].iter().collect(),
-                        pinyin,
-                        complete: true,
-                    }),
-                None => self.partial(first).map(|pinyin| Unit {
-                    keys: first.to_string(),
-                    pinyin,
-                    complete: false,
-                }),
-            };
-            let Some(unit) = unit else {
-                break;
-            };
-            index += unit.keys.len();
-            units.push(unit);
-        }
-        Decoded::new(units, chars[index..].iter().collect())
-    }
-
-    /// 落单的一键代表的前缀：声母键是声母，元音键是元音本身（`a` 后面可能是 ai / an / ang / ao）。
-    fn partial(self, key: char) -> Option<String> {
-        if let Some(initial) = self.initial(key) {
-            return Some(initial.to_owned());
-        }
-        match self {
-            // 小浪与首道的 `e` 键是翘舌声母，零声母 e 一族改用 `u` 引导
-            Self::Xiaolang | Self::Shoudao => match key {
-                'a' => Some("a".to_owned()),
-                'o' => Some("o".to_owned()),
-                'u' => Some("e".to_owned()),
-                _ => None,
-            },
-            _ => matches!(key, 'a' | 'e' | 'o').then(|| key.to_string()),
-        }
+        self.layout().decode(keys)
     }
 }
+
+/// 内置九套的键位，与 [`Scheme::ALL`] 同序。
+static BUILTIN: LazyLock<[Layout; 9]> =
+    LazyLock::new(|| Scheme::ALL.map(|scheme| Layout::from_table(scheme.key(), scheme.table())));
 
 impl FromStr for Scheme {
     type Err = String;
@@ -353,7 +228,7 @@ mod tests {
                 for second in &keys {
                     // `syllable` 本身就是确定的；这里确认零声母写法与「声母 + 韵母」不撞车
                     let zero = scheme
-                        .table()
+                        .layout()
                         .zero_initials
                         .iter()
                         .filter(|(_, spellings)| {
@@ -558,6 +433,26 @@ mod tests {
         assert_eq!(Scheme::Microsoft.decode(";").tail(), ";");
         assert_eq!(Scheme::Ziguang.decode(";").pinyin(), "");
         assert_eq!(Scheme::Ziguang.decode(";").tail(), ";");
+    }
+
+    #[test]
+    fn single_keys_are_derived_from_the_layout() {
+        for scheme in Scheme::ALL {
+            for key in "abcdefghijklmnopqrstuvwxyz;".chars() {
+                let expected = scheme
+                    .initial(key)
+                    .map(str::to_owned)
+                    .or_else(|| match scheme {
+                        Scheme::Xiaolang | Scheme::Shoudao => match key {
+                            'a' | 'o' => Some(key.to_string()),
+                            'u' => Some("e".to_owned()),
+                            _ => None,
+                        },
+                        _ => matches!(key, 'a' | 'e' | 'o').then(|| key.to_string()),
+                    });
+                assert_eq!(scheme.layout().partial(key), expected, "{scheme}: {key}");
+            }
+        }
     }
 
     #[test]

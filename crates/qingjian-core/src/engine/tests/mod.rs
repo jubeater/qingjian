@@ -4,12 +4,15 @@ mod aux_code;
 mod cloud;
 mod cloud_trigger;
 mod code;
+mod code_keys;
 mod correction;
 mod custom;
 mod emoji;
 mod english;
+mod held;
 mod learning;
 mod lookup;
+mod nine_key;
 mod panel;
 mod privacy;
 mod raw;
@@ -17,6 +20,7 @@ mod shuangpin;
 mod spacing;
 mod traditional;
 mod vocabulary;
+mod voice;
 mod zhuyin;
 
 use std::collections::HashMap;
@@ -26,8 +30,12 @@ use std::sync::{Arc, Mutex};
 use super::*;
 
 use crate::candidate::{PartOfSpeech, Sense, Translation};
+use crate::shuangpin::Scheme;
 
 const SAMPLE: &str = "开发\tkai fa\t9000\n开发者\tkai fa zhe\t3000\n开饭\tkai fan\t800\n开放\tkai fang\t20000\n西安\txi an\t4000\n先\txian\t10000\n下\txia\t8000\n想\txiang\t9000\n开\tkai\t20000\n咖啡\tka fei\t5000\n不\tbu\t1000\n";
+
+/// 带「时间」的小词库，试全拼出快捷写法。
+const KEYWORDS: &str = "时间\tshi jian\t12000\n是\tshi\t9000\n见\tjian\t5000\n";
 
 fn engine() -> Engine {
     Engine::new(Dictionary::parse(SAMPLE).unwrap())

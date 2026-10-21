@@ -5,9 +5,8 @@ use std::time::{Instant, SystemTime};
 
 use qingjian_core::Language;
 use qingjian_dictionary::Dictionary;
-use qingjian_platform::{
-    AuxCodeConfig, DictionariesConfig, UpdateConfig, code_tables, extra_dictionaries,
-};
+use qingjian_platform::code_tables::AuxCodeSources;
+use qingjian_platform::{AuxCodeConfig, DictionariesConfig, UpdateConfig, extra_dictionaries};
 use qingjian_predict::PredictConfig;
 
 /// 随包与用户数据目录：启动与热加载用的是同一批（词库、码表）。
@@ -28,15 +27,25 @@ pub struct DataDirs {
 
     /// 用户导入码表目录（`<用户目录>/codes`）。
     pub user_codes: Option<PathBuf>,
+
+    /// 随包方案目录（辅码方案在这里与用户目录的 `schemes/` 里找）。
+    pub bundled_schemes: Option<PathBuf>,
 }
 
 impl DataDirs {
-    /// 用户 `codes/` 的逐文件快照（路径、mtime、长度）；没配目录为空。启动与热加载轮询共用。
+    /// 辅码码表从哪几处找。
+    pub(super) fn aux_sources(&self) -> AuxCodeSources {
+        AuxCodeSources {
+            bundled_codes: self.bundled_codes.clone(),
+            user_codes: self.user_codes.clone(),
+            bundled_schemes: self.bundled_schemes.clone(),
+            user_dir: self.user_root.clone(),
+        }
+    }
+
+    /// 用户 `codes/` 与 `schemes/` 的逐文件快照（路径、mtime、长度）。启动与热加载轮询共用。
     pub(super) fn code_snapshot(&self) -> Vec<(PathBuf, Option<SystemTime>, u64)> {
-        self.user_codes
-            .as_deref()
-            .map(code_tables::snapshot)
-            .unwrap_or_default()
+        self.aux_sources().snapshot()
     }
 
     /// 用户 `dicts/` 的同一份快照；没配目录为空。

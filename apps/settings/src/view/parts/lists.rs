@@ -14,20 +14,30 @@ use crate::view::parts::actions::with_notice;
 /// 随包领域词库名字的统一前缀。
 const DOMAIN_PREFIX: &str = "青简领域词库：";
 
-/// 一本用户导入的（或随包的码表）：勾选是开关，后面是条数与许可证，`removable` 的带「移除」。
+/// 一本用户导入的词库或一套码表：`toggle` 给了就是勾选开关（是否开着、点了发什么），没给只写名字（码表在下拉框里选）；
+/// 后面是条数与许可证，`removable` 的带「移除」。
 pub fn entry_row(
     ui: &mut Ui<Message>,
     page: &Page,
     kind: Kind,
     entry: &Entry,
-    on: bool,
-    toggle: Message,
+    toggle: Option<(bool, Message)>,
     removable: bool,
 ) -> Result<NodeId, RenderError> {
     let theme = &page.theme;
-    let checkbox = Checkbox::new(on && !entry.broken, &entry.name)
-        .disabled(entry.broken)
-        .build(ui, theme, ("entry", kind, entry.stem.as_str()), toggle)?;
+    let checkbox = match toggle {
+        Some((on, toggle)) => Checkbox::new(on && !entry.broken, &entry.name)
+            .disabled(entry.broken)
+            .build(ui, theme, ("entry", kind, entry.stem.as_str()), toggle)?,
+        None => ui.scene().node(
+            Style::default(),
+            Visual::Text {
+                text: entry.name.clone(),
+                style: theme.text(theme.font.size, 400, theme.colors.text),
+            },
+            &[],
+        )?,
+    };
     let detail = if entry.broken {
         "文件坏了，打不开".to_owned()
     } else if entry.license.is_empty() {

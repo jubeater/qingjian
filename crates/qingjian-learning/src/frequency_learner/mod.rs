@@ -246,6 +246,21 @@ impl FrequencyLearner {
         self.dirty
     }
 
+    /// 词频文件 `frequency_path` 与它同目录的各张表、侧车文件：清空或导出学习数据时按这份清单。
+    pub fn files(frequency_path: &Path) -> Vec<PathBuf> {
+        vec![
+            frequency_path.to_path_buf(),
+            Self::days_path(frequency_path),
+            Self::words_path(frequency_path),
+            Self::ngram_path(frequency_path),
+            Self::choices_path(frequency_path),
+            Self::english_path(frequency_path),
+            Self::english_days_path(frequency_path),
+            Self::typos_path(frequency_path),
+            Self::typos_days_path(frequency_path),
+        ]
+    }
+
     /// 词频的最近使用日侧车文件与词频文件同目录。
     pub(super) fn days_path(frequency_path: &Path) -> PathBuf {
         frequency_path.with_file_name(USER_DAYS_FILE)

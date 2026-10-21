@@ -1,8 +1,8 @@
 //! 附加候选：日期时间等快捷项、中英混输的英文词与补全、emoji 与颜文字、符号。
 
 use super::{
-    EMOJI_PER_WORD, EMOJI_SCAN, ENGLISH_COMPLETIONS, Engine, KAOMOJI_PER_WORD, Learner,
-    MIN_COMPLETION_LETTERS,
+    EMOJI_PER_WORD, EMOJI_SCAN, ENGLISH_COMPLETIONS, Engine, KAOMOJI_PER_WORD, KEYWORD_SCAN,
+    Learner, MIN_COMPLETION_LETTERS,
 };
 use crate::candidate::{Candidate, CandidateKind};
 use crate::emoji::EmojiTable;
@@ -74,6 +74,34 @@ impl Engine {
         }
         let position = items.len().min(1);
         items.splice(position..position, shortcuts);
+    }
+
+    /// 全拼打出了「日期 / 时间 / 星期」（排在前 [`KEYWORD_SCAN`] 个词里，配的 emoji 这些不算）：对应的快捷写法
+    /// 紧跟在这个词后面、排在它的 emoji 之前，所以要在配 emoji 之后调。
+    /// 已经有快捷候选（`rq` 出的）就不再加，免得同一组写法出两遍。
+    pub(super) fn insert_keyword_shortcuts(&self, items: &mut Vec<Candidate>) {
+        if items.iter().any(|c| c.kind == CandidateKind::Shortcut) {
+            return;
+        }
+        let now = jiff::Zoned::now();
+        let found = items
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| {
+                !matches!(
+                    c.kind,
+                    CandidateKind::Emoji | CandidateKind::Kaomoji | CandidateKind::Symbol
+                )
+            })
+            .take(KEYWORD_SCAN)
+            .find_map(|(i, c)| {
+                let forms = shortcut::keyword_forms(&c.text, &now);
+                (!forms.is_empty()).then_some((i, forms))
+            });
+        if let Some((index, forms)) = found {
+            let position = index + 1;
+            items.splice(position..position, shortcut::as_candidates(forms));
+        }
     }
 
     /// 中英混输：整段输入是英文词就把它加进候选。

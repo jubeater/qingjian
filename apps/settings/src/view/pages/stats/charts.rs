@@ -5,7 +5,6 @@ use bamboo_slip::{BarChart, Datum, Heatmap, RenderError, Ui, Visual, group};
 use jiff::civil::Date;
 
 use crate::message::Message;
-use crate::stats::week_start;
 use crate::view::Page;
 
 /// 格子图画几周（含这周）。
@@ -31,7 +30,9 @@ pub fn calendar(
     value: impl Fn(Date) -> u64,
     tip: impl Fn(Date, u64) -> String,
 ) -> Result<NodeId, RenderError> {
-    let start = week_start(today).saturating_sub(jiff::Span::new().weeks(WEEKS - 1));
+    let back = i64::from(today.weekday().to_sunday_zero_offset());
+    let week_start = today.saturating_sub(jiff::Span::new().days(back));
+    let start = week_start.saturating_sub(jiff::Span::new().weeks(WEEKS - 1));
     let dates: Vec<Date> = (0..WEEKS * 7)
         .map(|offset| start.saturating_add(jiff::Span::new().days(offset)))
         .collect();

@@ -101,10 +101,11 @@ Source: "{#Repo}\assets\emoji\emoji-zh.tsv";     DestDir: "{app}\assets\emoji"; 
 Source: "{#Repo}\assets\emoji\emoji-en.tsv";     DestDir: "{app}\assets\emoji";  Flags: ignoreversion
 Source: "{#Repo}\assets\levels\levels-en.tsv";   DestDir: "{app}\assets\levels"; Flags: ignoreversion
 Source: "{#Repo}\assets\levels\levels-ja.tsv";   DestDir: "{app}\assets\levels"; Flags: ignoreversion
-; 五笔码表（输入方案选五笔时用，见 assets/wubi/README.md；极点 86 码表，Apache-2.0）。
-; 走 assets\ 与 emoji / levels 一致，Server 的 `dispatch::code::find_code_table` 照同一个相对路径找，
+; 随包形码方案（五笔，见 assets/schemes/wubi86/README.md；极点 86 码表，Apache-2.0）。
+; 走 assets\ 与 emoji / levels 一致，Server 的 `dispatch::code::find_bundled_schemes` 照同一个相对路径找，
 ; 开发布局（cargo run）也对得上
-Source: "{#Repo}\assets\wubi\wubi86.tsv";        DestDir: "{app}\assets\wubi";   Flags: ignoreversion
+Source: "{#Repo}\assets\schemes\wubi86\scheme.toml";  DestDir: "{app}\assets\schemes\wubi86"; Flags: ignoreversion
+Source: "{#Repo}\assets\schemes\wubi86\table.tsv";    DestDir: "{app}\assets\schemes\wubi86"; Flags: ignoreversion
 Source: "{#Repo}\assets\sample\dict.tsv";        DestDir: "{app}\assets\sample"; Flags: ignoreversion
 ; —— Server 放最后：它一落地，旧版 DLL 就能把它拉起来并占住数据文件（见文件头）——
 Source: "{#Repo}\target\release\qingjian-server.exe";   DestDir: "{app}"; Flags: ignoreversion

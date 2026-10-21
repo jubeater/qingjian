@@ -53,7 +53,7 @@ pub struct Args {
     #[arg(long)]
     pub extra_dict: Vec<PathBuf>,
 
-    /// 辅码码表（.qj，或 `词<TAB>码` 的 TSV），可给多个一起筛。给了之后 `kaifa;kf` 这样的输入
+    /// 辅码码表（.qj，或 `词<TAB>码` 的 TSV；也可以是写了 `type = "aux"` 的方案目录，带上它的词码规则），可给多个一起筛。给了之后 `kaifa;kf` 这样的输入
     /// 按辅码态走：触发键进辅码态、之后的字母按码缩小候选
     #[arg(long)]
     pub aux_table: Vec<PathBuf>,
@@ -90,13 +90,18 @@ pub struct Args {
     #[arg(long)]
     pub chinese_first: bool,
 
-    /// 双拼方案（xiaohe / ziranma / microsoft / sogou / abc / xiaolang / shoudao / jiajia / ziguang），覆盖配置里的 [general] shuangpin；off 强制全拼
+    /// 双拼方案（xiaohe / ziranma / microsoft / sogou / abc / xiaolang / shoudao / jiajia / ziguang，或用户双拼方案的目录），覆盖配置里的 [general] scheme；off 强制全拼
     #[arg(long)]
     pub shuangpin: Option<String>,
 
-    /// 形码码表（五笔）的 TSV 文件（`词\t编码\t词频`）：给了就用编码查表，不走拼音那一套
-    #[arg(long, value_name = "码表")]
-    pub wubi: Option<PathBuf>,
+    /// 九宫格方案：输入写数字键（`64426` → 你好），验证手机 9 键的候选与整句
+    #[arg(long)]
+    pub nine_key: bool,
+
+    /// 形码：码表 TSV（`词\t编码\t词频`，按 86 五笔记日志、按键规则全关）或方案目录（`scheme.toml` + 码表）。
+    /// 给了就开着形码；`--wubi` 是旧写法
+    #[arg(long, alias = "wubi", value_name = "码表或方案目录")]
+    pub code: Option<PathBuf>,
 
     /// 神经重打分：字级 Transformer 的 .qjm 文件或导出目录（model.safetensors / config.json / vocab.json），整句前几条路径用它重排
     #[arg(long)]
@@ -188,7 +193,7 @@ pub struct Args {
     pub eval_details: Option<PathBuf>,
 
     /// 冷启动字词评测：读取 JSONL，不加载个人配置或个人学习文件
-    #[arg(long, requires = "cold_output", conflicts_with_all = ["user_dict", "config", "predict", "replay", "eval_text", "english_mode", "shuangpin", "wubi", "aux_table", "tune", "fuzzy", "inputs", "neural_async", "mine_log", "check_user_words"])]
+    #[arg(long, requires = "cold_output", conflicts_with_all = ["user_dict", "config", "predict", "replay", "eval_text", "english_mode", "shuangpin", "code", "aux_table", "tune", "fuzzy", "inputs", "neural_async", "mine_log", "check_user_words"])]
     pub eval_cold: Option<PathBuf>,
 
     /// 冷启动逐词结果 JSONL（拒绝覆盖）

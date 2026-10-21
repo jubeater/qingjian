@@ -13,7 +13,8 @@
     "ink": "#302632",
     "rose": "#d98d9e",
     "accent": "#ef85a2",
-    "divider": "#f3d6dc"
+    "divider": "#f3d6dc",
+    "surface": "#fff4f6"
   },
 
   "text": {

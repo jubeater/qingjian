@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
 use qingjian_core::{Engine, Language, NoGlossFiller, NoPredictor, NoTranslator};
-use qingjian_platform::{Config, code_tables};
+use qingjian_platform::Config;
 use qingjian_predict::{API_USAGE_FILE, CloudGlossFiller, CloudPredictor, PredictConfig};
 
 pub(super) use self::state::ConfigReload;
@@ -184,7 +184,7 @@ impl Router {
             reload.last_mtime = current;
             changed
         };
-        // 用户 `codes/` 下的文件增删或更新（设置页刚导入 / 移除一张码表）：不必等配置改动，下一拍就生效
+        // 用户 `codes/` 或 `schemes/` 下的文件增删或更新（设置页刚导入 / 移除一张码表、改了辅码方案）：不必等配置改动，下一拍就生效
         let codes_changed = {
             let current = reload.dirs.code_snapshot();
             let changed = current != reload.code_files;
@@ -218,7 +218,7 @@ impl Router {
             tracing::warn!(%error, "自定义短语配置未应用，保持原短语");
         }
         // 拼音侧与形码侧一起装配（双拼 / 注音 / 混输都在里面）
-        self.reload_code_table(config.general.scheme(), config.general.wubi());
+        self.reload_schemes(config);
         self.engine.set_traditional(config.general.traditional());
         self.engine.set_learning(config.general.learning);
         self.engine.set_mode_keys(config.shortcut.mode);
@@ -239,8 +239,11 @@ impl Router {
             .set_english_in_chinese(config.general.english_in_chinese);
         self.engine
             .set_shift_letter_compose(config.general.shift_letter.compose());
+        self.engine.set_auto_space(config.general.auto_space);
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
+        self.engine
+            .set_hold_selections(config.general.hold_selections);
         let previous = self.config.render_settings();
         let grid_keys = self.config.grid_keys();
         let next = RouterConfig::from(config);
@@ -299,11 +302,7 @@ impl Router {
         let Some(reload) = &self.reload else {
             return;
         };
-        let tables = code_tables::load(
-            reload.dirs.bundled_codes.as_deref(),
-            reload.dirs.user_codes.as_deref(),
-            &reload.applied_aux_code,
-        );
+        let tables = reload.dirs.aux_sources().load(&reload.applied_aux_code);
         if let Some(reload) = &mut self.reload {
             reload.code_files = reload.dirs.code_snapshot();
         }

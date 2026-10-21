@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use qingjian_core::{EmojiTable, Engine, Language};
 use qingjian_dictionary::{Dictionary, WordList};
-use qingjian_learning::{FrequencyLearner, InputLog, UsageStats, VocabularyBook};
+use qingjian_learning::{FrequencyLearner, InputLog, PanelUsage, UsageStats, VocabularyBook};
 use qingjian_platform::{Config, extra_dictionaries};
 use qingjian_translate::{Glossary, LayeredTranslator, LevelTable, PersonalGlossary};
 
@@ -42,6 +42,7 @@ pub fn assemble(spec: &AssemblySpec) -> Result<Engine, ServerError> {
     if let Some(dir) = &spec.user_dir {
         engine = engine
             .with_usage_meter(Box::new(UsageStats::open(dir)))
+            .with_panel_history(Box::new(PanelUsage::open(dir)))
             .with_vocabulary_tracker(Box::new(load_vocabulary(dir, spec.levels_dir.as_deref())));
         if spec.input_log {
             let path = spec

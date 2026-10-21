@@ -54,9 +54,11 @@
 - [ ] 快捷短语（`i` 前缀）：编码 → 短语表，用户可增删
 - [ ] 问字模式离线版：拆字表（IDS 数据）按部件查字，云端版已有
 - [ ] 双拼收尾：菜单栏增加方案切换
-- [ ] 双拼方案数据化：加方案不用改代码（放一张键位表就能用，与 #51 的方案导入一起定）；解码支持同码出多个读音——小浪的 `lk`（lai / lia）、`nm`（niang / nen）、`dk`（dai / dia）、`un`（en / eng）现在只解第一个，做完去掉 `every_syllable_round_trips` 里小浪的四个例外（#129）
+- [x] 双拼方案数据化：用户在 `schemes/<id>/scheme.toml` 写 `type = "shuangpin"` 就是一套方案，可拿内置方案当底子只改几个键（2026-10-20，Linux 未接）
+- [ ] 双拼解码支持同码出多个读音——小浪的 `lk`（lai / lia）、`nm`（niang / nen）、`dk`（dai / dia）、`un`（en / eng）现在只解第一个，做完去掉 `every_syllable_round_trips` 里小浪的四个例外（#129）
 - [ ] 辅码（issue #8，设计见 [docs/design/aux-code.md](../design/aux-code.md)）：触发键（缺省 `;`，与「非拼音键进直输段 / 全角标点」排优先级）与逐键即筛、词级过滤、辅码态隐藏无码词；码表走 Rime yaml 导入（`columns` 必须解析、`import_tables` 跨文件合表、「有词无码」行要报警）；码表存**独立码索引**（两段式查询，别复用词库 Slot）；
   原生表只带笔画（CNS11643 笔顺 + 大陆序覆盖表 `dict-convert stroke`，艹 3 / 辶 3 / 阝 2）；设置界面加「辅码」页（macOS 偏好设置 / Windows 设置程序：触发键、显示码、码表列表、导入）；第三方形码表（小鹤形 / 自然码形）不随包，走引导导入
+  - [ ] 整句 + 辅码：辅码态现在只出词候选，整句不出（`dongguaxigua;ppph` 拿不到「冬瓜西瓜」）；要做得把码逐字约束进整句词图（设计文档「后续」）。2026-10-20 用户定先不做
 - [ ] 敲错边收尾：敲错四类代价与整段纠错代价 2026-09-12 已在冻结日志（12886 条可评）上扫过，都在峰上，不改（`docs/notes/constant-sweep.md`）；
   个人折扣上限（3）回放从零学分不出好坏，等 `user-typos.tsv` 能带进回放（`--user-dict`）再看；
   退格重打（组句内、跨上屏）已进输入日志 `retype` 事件（2026-09-12），攒够后先按 `docs/plan/model-eval.md` 的尺子算召回与误纠率，再决定喂不喂个人敲错表；
@@ -84,13 +86,16 @@
   30 天不用的英文词失去「当第一」的资格；自愈出口仍是删候选快捷键（缺省 `Shift` + 数字）走 `forget_english`。
   「位置只有两档」另见 #606。
 - [ ] 日语 emoji 要等有日语输入模式
+- [ ] 人名输入（2026-10-20 用户群反馈，对照微软拼音）：一串拼音像人名时，第一个音节先按姓氏匹配、不当词语查；
+  首字是「长」「令」「欧」这类时再看第二字能不能凑成复姓（长孙、令狐、欧阳），剩下的按名字常用字表组合。
+  要两张表（姓氏含复姓、名字常用字频），来源要许可干净；什么时候按人名排、怎么不挤掉普通词要先定，改了排序过回放
 
 ## 二、产品特色
 
 - [ ] 释义表收尾：覆盖面再扩（次数阈值降到 100 约 10 万词）；JMdict 校对假名与日文词性；等级表（CEFR / JLPT 已随包，见 `assets/levels/`）
   也可做英→中、日→中方向的种子；四六级 / 商务英语词表要先找到许可干净的来源
 - [ ] 可选复习（Phase 4）：输入统计、生词识别、词汇统计（含 CEFR / JLPT 等级分布）已做（2026-09-06）；复习容易变成打扰，先不急
-- [ ] 云联想收尾（Phase 6）：密钥进钥匙串（等签名定了再做，ad-hoc 签名每次重装都弹授权）、按应用禁用、限流与用量统计
+- [ ] 云联想收尾（Phase 6）：密钥进系统密钥库——mac 钥匙串、Windows 凭据管理器（等签名定了再做，ad-hoc 签名每次重装都弹授权；安卓已用 Keystore，见 `docs/notes/android.md`）、按应用禁用、限流与用量统计
 - [ ] 个人模型（Phase 7）：小 Transformer 实验（有评测门槛），见 roadmap
 
 - [ ] ★ **主题与自绘渲染器 spike**（2026-09-13 定向，分支 `renderer-spike`，见 [design/rendering.md](../design/rendering.md)）：
@@ -132,20 +137,24 @@
     密码框已按 TSF 规范做（2026-09-12）：`KEYBOARD_DISABLED` compartment 整键放行不组句，`IS_PRIVATE` / 密码 / PIN 输入范围为私密（组句但不学不记不发云端，`ClientMessage::Privacy` → `Engine::set_private`），box 真机验过：Edge 密码框整键放行；InPrivate 网页文本框报 `IS_SEARCH` 不报 `IS_PRIVATE`，私密路径只靠单测覆盖；CI 两个 job 都从 `data` Release 取 `model.qjm`（已做）。
 - [ ] Linux Fcitx5 后续（默认面板与手动安装已实现）：native Wayland 验证、Server 自绘 / GNOME 位图、神经重排、自动启动与打包；配置同步、跨平台词库
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
-  - [ ] 辅码：macOS、Linux
+  - [ ] 辅码：Linux
+  - [ ] 形码与自定义方案：Linux
   - [ ] 默认英文模式：macOS
   - [ ] 按应用记住中英模式：macOS、Linux
-  - [ ] 中文与英文、数字之间自动加空格：Windows、Linux
+  - [ ] 中文与英文、数字之间自动加空格：Linux
   - [ ] 横排时 ↑ / ↓ 展开成多行：Linux
-  - [ ] 额外翻页键：macOS、Linux
+  - [ ] 额外翻页键：Linux
   - [ ] 高亮移动键：Linux
-  - [ ] Ctrl + . 切换全半角标点：macOS、Linux
+  - [ ] Ctrl + . 切换全半角标点：Linux
   - [ ] 云服务用量统计：Linux
-  - [ ] 按需云联想与请求节奏：macOS、Linux
+  - [ ] 按需云联想与请求节奏：Linux
   - [ ] 生词本整句翻译：Linux
+  - [ ] 双拼键位提示：Linux
 
 ## 四、其他输入方案
 
 - [ ] 五笔（86 版）：方案与分期见 [wubi.md](wubi.md)，第一期 Core + CLI + Windows；
   `[general] scheme` 收敛与配置迁移一起做（顺带解掉〇里的「配置文件版本迁移」）
+- [ ] 自定义形码方案：Core / 平台 / CLI / Windows / macOS / 新版设置程序已做（2026-10-20，见 [wubi.md](wubi.md) 五之三），
+  剩 Windows 与 macOS 真机验顶字和满码自动上屏、Linux 壳接形码
 - [ ] 复杂方案收尾（与上一条共用「输入方案」抽象）：注音只在 Core 与 Windows 接了，macOS 侧还没接；双拼的方案切换要等 `[general] scheme`

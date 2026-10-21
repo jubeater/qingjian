@@ -19,11 +19,12 @@ use std::path::PathBuf;
 
 use jiff::civil::Date;
 use qingjian_core::{Language, Translator, VocabularySummary};
+use qingjian_learning::figures::recent_start;
 use qingjian_learning::{LoggedEncounter, UsageStats, VocabularyBook, VocabularyEntry};
 use qingjian_platform::GeneralConfig;
 use qingjian_translate::Glossary;
 
-use crate::stats::{language_name, week_start};
+use crate::stats::language_name;
 use crate::system::paths;
 
 /// 一页列几个词。
@@ -154,11 +155,11 @@ impl Vocabulary {
     /// 按筛选、搜索、排序排好的全部词；搜索不分大小写，译词、中文、例句里有就算。
     pub fn matching(&self, query: &str) -> Vec<(&str, &VocabularyEntry)> {
         let query = query.trim().to_lowercase();
-        let week = week_start(self.today);
+        let recent_from = recent_start(self.today);
         let mut words: Vec<_> = self
             .book
             .words(self.language)
-            .filter(|(_, entry)| self.filter.keeps(entry, week))
+            .filter(|(_, entry)| self.filter.keeps(entry, recent_from))
             .filter(|(word, entry)| {
                 query.is_empty()
                     || word.to_lowercase().contains(&query)

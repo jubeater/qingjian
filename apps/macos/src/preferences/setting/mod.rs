@@ -185,7 +185,7 @@ pub enum Setting {
     /// `[general] shuangpin_raw_preedit`，勾选框：双拼模式下输入框保留原始输入按键。
     ShuangpinRawPreedit,
 
-    /// `[general] wubi`，勾选框：勾上是五笔（86 版）。与拼音同时开着就是混输。
+    /// `[general] code`，勾选框：勾上是五笔（86 版），取消是关。与拼音同时开着就是混输。
     Wubi,
 
     /// `[general] traditional_variant`，弹出菜单：简体 + 三档繁体。

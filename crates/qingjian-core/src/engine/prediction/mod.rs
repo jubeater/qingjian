@@ -104,9 +104,20 @@ impl Engine {
             None => (String::new(), String::new()),
         };
         let scope = self.composition.scope();
+        // 九宫格敲的是数字：问云端用这次查询的拼音行，没查过这段就不发
+        let nine_key_pinyin = if self.nine_key {
+            let snapshot = self.last_query.borrow();
+            match snapshot.as_ref().filter(|s| s.scope == scope) {
+                Some(snapshot) => Some(snapshot.pinyin.clone()),
+                None => return None,
+            }
+        } else {
+            None
+        };
         if self.english_mode
             || self.modes().is_expression(scope, self.zhuyin)
-            || is_raw(scope, self.modes(), self.shuangpin, self.zhuyin)
+            || (nine_key_pinyin.is_none()
+                && is_raw(scope, self.modes(), self.shuangpin.as_deref(), self.zhuyin))
         {
             return None;
         }
@@ -131,7 +142,12 @@ impl Engine {
                 String::new(),
             )
         } else {
-            (PredictionKind::Compose, scope, before, after)
+            (
+                PredictionKind::Compose,
+                nine_key_pinyin.as_deref().unwrap_or(scope),
+                before,
+                after,
+            )
         };
         // 双拼：问云端用的是解出来的全拼，不是敲的键
         let decoded = self.decode(pinyin_source);
@@ -382,7 +398,7 @@ impl Engine {
             phrase: None,
         };
         self.remember_commit(commit);
-        traditional_text
+        self.take_held() + &traditional_text
     }
 
     /// 云端词学成用户词时用哪套音节。模型给的读音偶有错（我的 → wo di），错读音学进去以后只会按错读音出来，

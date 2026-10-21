@@ -26,7 +26,7 @@ mod word_list;
 
 pub use aux_code_table::{
     AuxCodeLookup, AuxCodeTable, AuxCodeTableImport, AuxCodeTableImportReport, AuxCodeTableInfo,
-    aux_code_table_info, import_aux_code_table,
+    WordRules as AuxWordRules, aux_code_table_info, import_aux_code_table,
 };
 pub use code_table::CodeTable;
 pub use dictionary::Dictionary;

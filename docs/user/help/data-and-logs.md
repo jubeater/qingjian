@@ -41,6 +41,7 @@ description: 青简在本机保存的文件及其内容、云联想发送的内�
 | `dicts/` | 用户导入的词库 | 否 |
 | `themes/` | 自制主题，见[主题](../settings/themes.md) | 否 |
 | `codes/` | 用户导入的码表（「设置 → 输入 → 码表」导入的，可在那里开关或移除） | 否 |
+| `schemes/` | 自己放入的形码、双拼与辅码方案，见[自定义形码方案](../input/fuzzy-and-shuangpin.md#自定义形码方案)、[自定义双拼方案](../input/fuzzy-and-shuangpin.md#自定义双拼方案)、[自定义辅码方案](../input/aux-code.md#自定义辅码方案) | 否 |
 
 这些文件每次整体替换，即使输入法中途崩溃也不会留下写到一半的文件。
 

@@ -10,8 +10,10 @@ impl Engine {
         if self.shuangpin.is_some() {
             return None;
         }
-        // 形码敲的是字根编码，不是拼音；混输下四码以内可能是编码，超过四码才只剩拼音
-        if self.code.is_some() && (!self.phonetic || scope.len() <= MAX_CODE_LENGTH) {
+        // 形码敲的是字根编码，不是拼音；混输下码长以内可能是编码，超过码长才只剩拼音
+        if let Some(code) = &self.code
+            && (!self.phonetic || scope.len() <= code.code_length)
+        {
             return None;
         }
         if let Some((cached_scope, cached)) = self.correction_cache.borrow().as_ref()

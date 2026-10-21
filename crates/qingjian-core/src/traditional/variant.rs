@@ -46,6 +46,16 @@ impl TraditionalVariant {
             Self::Standard => "繁体（通用字形）",
         }
     }
+
+    /// 只说字形的短名，用在已经写明「繁体」的地方（手机键盘设置的「繁体字形」）。
+    pub fn short_label(self) -> &'static str {
+        match self {
+            Self::Off => "简体",
+            Self::Taiwan => "台湾",
+            Self::Hongkong => "香港",
+            Self::Standard => "通用",
+        }
+    }
 }
 
 #[cfg(test)]

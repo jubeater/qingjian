@@ -204,6 +204,26 @@ impl Engine {
             .next()
     }
 
+    /// 注音每个音节敲的声调：`patterns` 就是当前输入解出来的那串音节（或其开头一段）时才给，
+    /// 纠错、英文尾段等换过切分的给空，免得声调错位到别的音节上。
+    fn sentence_tones(
+        &self,
+        patterns: &[qingjian_dictionary::SyllablePattern<'_>],
+    ) -> Vec<Option<u8>> {
+        let Some(decoded) = self.decode(self.composition.scope()) else {
+            return Vec::new();
+        };
+        let Some(segmentation) = decoded.segmentation() else {
+            return Vec::new();
+        };
+        let aligned = patterns.len() <= segmentation.syllables.len()
+            && patterns
+                .iter()
+                .zip(&segmentation.syllables)
+                .all(|(pattern, syllable)| pattern.text == syllable.text);
+        if aligned { decoded.tones() } else { Vec::new() }
+    }
+
     /// 重排后的整句路径，最好的在前。`want` 是调用方要几条：只要一条时没接模型就只算一条
     /// （拼写纠错对每个候选都要转一次，多算几条纯是浪费）；要备选时至少算这么多条。
     pub(in crate::engine) fn sentence_paths(
@@ -229,6 +249,7 @@ impl Engine {
             self.personal(),
             |text| self.learner.weight(text),
             |index, syllable| expanded.cost(index, syllable),
+            &self.sentence_tones(patterns),
             &mut self.span_cache.borrow_mut(),
         );
         // 与最优路径差得太远的不参与：那种差距多半是个人 n-gram 拉开的

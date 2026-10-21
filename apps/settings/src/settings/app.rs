@@ -51,6 +51,9 @@ impl App for Settings {
                 if page == PageId::Dictionaries {
                     self.library = Library::scan();
                 }
+                if page == PageId::Input {
+                    self.library.rescan_schemes();
+                }
                 if page == PageId::Stats {
                     self.stats = Some(Stats::load(&self.config.general));
                 }
@@ -176,6 +179,11 @@ impl App for Settings {
                 self.write(section, key, value);
             }
             Message::SetList(section, key, values) => self.write_list(section, key, &values),
+            Message::SetCodeRule(key, value) => {
+                if let Some(id) = self.config.general.code() {
+                    self.write(&format!("code.{id}"), key, value);
+                }
+            }
             Message::OpenMenu(popup) => {
                 if popup == Popup::Font && self.fonts.is_none() {
                     self.fonts = Some(fonts::families());
@@ -270,6 +278,13 @@ impl App for Settings {
 
     fn set_system_dark(&mut self, dark: bool) {
         self.system_dark = dark;
+    }
+
+    /// 切回设置窗口时重扫输入方案：用户多半是刚在访达 / 资源管理器里往 `schemes/` 放了方案。
+    fn set_active(&mut self, active: bool) {
+        if active {
+            self.library.rescan_schemes();
+        }
     }
 
     fn spotlight(&self) -> Option<Key> {

@@ -5,6 +5,7 @@ mod bitmap;
 mod bounds;
 mod cloud_icon;
 mod frame;
+mod key_hint;
 mod panel_mouse;
 mod panel_tabs;
 mod preedit;

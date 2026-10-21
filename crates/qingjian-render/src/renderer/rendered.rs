@@ -51,6 +51,21 @@ impl Rendered {
             .map(|region| region.target)
     }
 
+    /// 候选最上沿在位图里的像素纵坐标；没有候选时是位图高。候选条的壳以它为界：上面的拼音行钉住，下面的候选随滚动。
+    pub fn candidates_top(&self) -> u32 {
+        let top = self
+            .hits
+            .iter()
+            .filter(|region| matches!(region.target, HitTarget::Candidate(_)))
+            .map(|region| region.y)
+            .fold(f32::INFINITY, f32::min);
+        if top.is_finite() {
+            self.content_y + top.max(0.0) as u32
+        } else {
+            self.pixmap.height()
+        }
+    }
+
     /// 内容区宽高换回点。
     pub fn content_size_points(&self) -> (f32, f32) {
         (
