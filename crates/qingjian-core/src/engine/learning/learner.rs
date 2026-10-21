@@ -65,7 +65,7 @@ pub trait Learner: Send {
     /// `times` 是这次记几份：用户自己点选的词记双份（[`EXPLICIT_TRANSITION_WEIGHT`]），整句路径里顺带的记一份，
     /// 否则一次误按空格上屏的整句要用户改选两次才能翻回来。
     ///
-    /// [`EXPLICIT_TRANSITION_WEIGHT`]: super::EXPLICIT_TRANSITION_WEIGHT
+    /// [`EXPLICIT_TRANSITION_WEIGHT`]: crate::engine::EXPLICIT_TRANSITION_WEIGHT
     fn record_transition(&mut self, _context: Context<'_>, _word: &str, _times: u32) {}
 
     /// 个人 n-gram，整句转换与词级排序用它与静态模型插值；没有就返回 `None`。

@@ -21,7 +21,7 @@ pub struct CloudSettings {
 
 impl CloudSettings {
     /// 候选整句翻译、生词本整句翻译全关；[`Self::predict`] 关着时联想与整句补全也关，只有显式的翻译请求会发出去。
-    /// 开着时停键 [`DEBOUNCE_MS`] 后发组句联想，云端词最多 [`SLOTS`] 个。边打边翻要跟得上，请求间隔比 PC 短；防抖在 worker 里。
+    /// 开着时停键 `DEBOUNCE_MS` 后发组句联想，云端词最多 `SLOTS` 个。边打边翻要跟得上，请求间隔比 PC 短；防抖在 worker 里。
     pub fn predict_config(&self) -> PredictConfig {
         PredictConfig {
             enabled: true,

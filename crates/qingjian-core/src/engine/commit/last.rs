@@ -29,7 +29,7 @@ pub struct LastCommit {
     /// 记过一次选择次数（`Learner::record`）的词；整句上屏没有。
     pub chosen: Option<String>,
 
-    /// 这次记下的「输入串 → 文本」选择的读音与文本（见 [`Choice`]），撤销时按它退回
+    /// 这次记下的「输入串 → 文本」选择的读音与文本（见 `Choice`），撤销时按它退回
     /// `Learner::record_choice` 的两份键。
     pub choice: Option<Choice>,
 

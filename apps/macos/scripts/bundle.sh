@@ -39,7 +39,8 @@ cd "$ROOT"
 # 构建标识进「关于」页与诊断信息：git 短哈希（工作区有改动加 +）与日期；编译期 option_env! 读
 GIT_REV="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then GIT_REV="${GIT_REV}+"; fi
-export QINGJIAN_BUILD="${GIT_REV} · $(date +%Y-%m-%d)"
+QINGJIAN_BUILD="${GIT_REV} · $(date +%Y-%m-%d)"
+export QINGJIAN_BUILD
 BUILD_ARGS=(-p "$BIN_NAME" -p qingjian-settings --locked)
 [[ "$PROFILE" == "release" ]] && BUILD_ARGS+=(--release)
 BIN_DIR="target/$PROFILE"

@@ -55,6 +55,13 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --exclude qingjian-macos --all-targets --locked -- -D warnings
 
+      # 文档断链、裸 HTML 标签（<TAB> 这类）平时编译看不出来，只有 rustdoc 会报；文档是给用户直接看的，
+      # 坏了不会红，只能靠这条门禁兜住。RUSTDOCFLAGS 只设在这一步，不污染后面的构建与测试。
+      - name: Rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps --workspace --exclude qingjian-macos --locked
+
       - name: Test
         run: cargo test --workspace --exclude qingjian-macos --locked
 
@@ -120,6 +127,21 @@ jobs:
             target/fcitx4-stage1/Testing/**
             target/fcitx4-stage1/CMakeFiles/CMakeOutput.log
             target/fcitx4-stage1/CMakeFiles/CMakeError.log
+
+  shellcheck:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # 静态检查所有 shell 脚本：安装脚本、发版脚本、图标渲染脚本都在里面。
+      # ubuntu runner 自带 shellcheck，无需额外安装步骤。
+      # 只报 warning 及以上——style/info 级噪音太多，会淹掉真问题。
+      # 用 git ls-files 而不是 find：只管纳入版本控制的文件。
+      - name: Shellcheck
+        run: shellcheck -S warning $(git ls-files "*.sh")
 
   macos:
     # 与 release.yml 的发版 job 用同一个 label（那边是 macos-26）。同一个仓库里 macOS 侧
@@ -217,6 +239,12 @@ jobs:
 
       - name: Clippy (Server, TSF DLL, Settings)
         run: cargo clippy -p qingjian-windows-server -p qingjian-windows-tsf -p qingjian-windows-settings -p qingjian-settings --all-targets --locked -- -D warnings
+
+      # core job 在 Linux 上文档化不到 #[cfg(windows)] 的模块，那一半的文档错误只有这里看得见。
+      - name: Rustdoc (Server, TSF DLL, Settings)
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc -p qingjian-windows-server -p qingjian-windows-tsf -p qingjian-windows-settings -p qingjian-settings --no-deps --locked
 
       - name: Test (Server, TSF DLL, Settings)
         run: cargo test -p qingjian-windows-server -p qingjian-windows-tsf -p qingjian-windows-settings -p qingjian-settings --locked

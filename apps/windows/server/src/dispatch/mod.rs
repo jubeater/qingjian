@@ -1,7 +1,7 @@
 //! 协议分派：把 DLL 发来的 [`ClientMessage`] 交给 Engine，产出回给 DLL 的 [`ServerMessage`]。
-//! 消息分派在 [`message`]，会话在 [`session`]，组句展示状态在 [`composed`]，按键在 [`key`]，
-//! 候选窗口输出在 [`candidates`]，状态条在 [`status`]，翻译选中文字在 [`translate`]，配置热加载在 [`reload`]，
-//! 本地整句模型在 [`rescore`]，形码码表在 [`code`]，符号面板在 [`panel`]。
+//! 消息分派在 `message`，会话在 `session`，组句展示状态在 `composed`，按键在 `key`，
+//! 候选窗口输出在 `candidates`，状态条在 `status`，翻译选中文字在 `translate`，配置热加载在 `reload`，
+//! 本地整句模型在 `rescore`，形码码表在 `code`，符号面板在 `panel`。
 
 mod candidates;
 mod composed;

@@ -49,9 +49,9 @@ const RAW_MARK: &str = "<raw>";
 
 /// 内存中的用户词频表。
 ///
-/// 词频、个人英文词与个人敲错表三张表带时间衰减（[`Decay`]，牛顿冷却）：记录时刷新最近使用日，
+/// 词频、个人英文词与个人敲错表三张表带时间衰减（`Decay`，牛顿冷却）：记录时刷新最近使用日，
 /// 查询时按半衰期折算有效次数。衰减只用在排序权重上，记录本身留着——真要清等冷了一年
-/// （[`COLD_DAYS`]），落盘时才连侧车一起清出。不改「一次误选翻不过静态证据」的封顶设计。
+/// （`COLD_DAYS`），落盘时才连侧车一起清出。不改「一次误选翻不过静态证据」的封顶设计。
 #[derive(Debug)]
 pub struct FrequencyLearner {
     /// 词 → 用户选择次数（带最近使用日）。
@@ -277,7 +277,7 @@ impl FrequencyLearner {
     pub fn save_to(&mut self, path: impl AsRef<Path>) -> Result<(), LearningError> {
         let now = self.today.get();
         let half_life = self.half_life_days;
-        // 衰减只影响排序权重，记录不清；真要清等冷了一年（[`COLD_DAYS`]），文件与内存一起
+        // 衰减只影响排序权重，记录不清；真要清等冷了一年（`COLD_DAYS`），文件与内存一起
         self.counts
             .retain(|_, entry| now.saturating_sub(entry.last_used) <= decay::COLD_DAYS);
         let mut rows: Vec<(&String, &Decay)> = self.counts.iter().collect();

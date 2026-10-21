@@ -77,7 +77,7 @@ pub struct Config {
     /// 常规：学习语言、每页候选数、翻页键、外观。
     pub general: GeneralConfig,
 
-    /// 自定义短语；保存和读取均检查位置冲突。读的时候写错的条目只跳过它自己（见 [`phrases`]）。
+    /// 自定义短语；保存和读取均检查位置冲突。读的时候写错的条目只跳过它自己（见 `phrases`）。
     #[serde(deserialize_with = "phrases::deserialize")]
     pub custom_phrases: Vec<qingjian_core::CustomPhrase>,
 

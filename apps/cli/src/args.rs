@@ -41,7 +41,7 @@ pub struct Args {
     #[arg(long)]
     pub dict: Option<PathBuf>,
 
-    /// 释义表路径。缺省：data/generated/glossary-<language>.tsv 存在就用它，否则 assets/sample/ 下的同名文件
+    /// 释义表路径。缺省：`data/generated/glossary-<language>.tsv` 存在就用它，否则 assets/sample/ 下的同名文件
     #[arg(long)]
     pub glossary: Option<PathBuf>,
 
@@ -78,7 +78,7 @@ pub struct Args {
     #[arg(long)]
     pub predict: bool,
 
-    /// 模糊音，逗号分隔（z-zh,c-ch,s-sh,n-l,f-h,l-r,an-ang,en-eng,in-ing），`all` 全开；给了就覆盖配置里的 [fuzzy]
+    /// 模糊音，逗号分隔（z-zh,c-ch,s-sh,n-l,f-h,l-r,an-ang,en-eng,in-ing），`all` 全开；给了就覆盖配置里的 `[fuzzy]`
     #[arg(long, value_delimiter = ',')]
     pub fuzzy: Vec<String>,
 
@@ -86,11 +86,11 @@ pub struct Args {
     #[arg(long)]
     pub english_mode: bool,
 
-    /// 打开中文优先（配置 [general] chinese_first = true）：整段是英文词时中文候选排第一、英文第二，评测两种排法用
+    /// 打开中文优先（配置 `[general]` chinese_first = true）：整段是英文词时中文候选排第一、英文第二，评测两种排法用
     #[arg(long)]
     pub chinese_first: bool,
 
-    /// 双拼方案（xiaohe / ziranma / microsoft / sogou / abc / xiaolang / shoudao / jiajia / ziguang，或用户双拼方案的目录），覆盖配置里的 [general] scheme；off 强制全拼
+    /// 双拼方案（xiaohe / ziranma / microsoft / sogou / abc / xiaolang / shoudao / jiajia / ziguang，或用户双拼方案的目录），覆盖配置里的 `[general]` scheme；off 强制全拼
     #[arg(long)]
     pub shuangpin: Option<String>,
 

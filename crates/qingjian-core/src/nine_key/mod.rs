@@ -36,7 +36,7 @@ pub fn is_key(c: char) -> bool {
     matches!(c, '2'..='9' | 'a'..='z' | '\'')
 }
 
-/// 把输入切成最优的几种形状（最多 [`BEAM`] 种，最优在前）。切不到末尾时退到能切到的最长前缀，
+/// 把输入切成最优的几种形状（最多 `BEAM` 种，最优在前）。切不到末尾时退到能切到的最长前缀，
 /// 返回值第二项是切掉的尾巴。第一个字符都切不动返回空。
 pub fn segment(input: &str) -> (Vec<Shape>, &str) {
     let bytes = input.as_bytes();

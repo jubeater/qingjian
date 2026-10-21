@@ -207,7 +207,7 @@ impl Engine {
     }
 
     /// 把应用里选中的一段文字交给云端翻译（壳里快捷键触发）：主要是汉字就译成学习语言，是外文（拉丁字母、假名）就译成中文
-    /// （[`translation_target`]）。预测服务未接入、私密输入中、文字为空时不发，返回 `None`；
+    /// （`translation_target`）。预测服务未接入、私密输入中、文字为空时不发，返回 `None`；
     /// 译文从 [`Self::poll_prediction`] 的 `sentence` 里出。不进学习、不动缓冲区。
     pub fn request_translation(&mut self, text: &str) -> Option<u64> {
         self.submit_translation(text, true)

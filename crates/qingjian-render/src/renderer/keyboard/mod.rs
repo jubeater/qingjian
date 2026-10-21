@@ -64,7 +64,7 @@ pub(super) struct Paint {
 }
 
 impl Renderer {
-    /// 画键位提示键盘。整块跟着候选字的比例缩放，再乘 [`BASE_ZOOM`] 与 `zoom`（用户设的大小，1 为原大）。
+    /// 画键位提示键盘。整块跟着候选字的比例缩放，再乘 `BASE_ZOOM` 与 `zoom`（用户设的大小，1 为原大）。
     /// 位图仍按 `scale` 标记，壳换回点时放大的部分留在点数里。
     pub fn render_keyboard(
         &mut self,

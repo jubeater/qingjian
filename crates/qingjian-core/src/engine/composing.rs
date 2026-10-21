@@ -134,7 +134,7 @@ impl Engine {
     }
 
     /// 壳告知：不在组句时按了退格，删的是应用里刚上屏的文字。从最近一次上屏往前数，一次上屏的字删光了就是「可能选错了」的信号：
-    /// 接着重打那段拼音选了别的词，那次记的学习就退回去（见 [`Self::apply_retraction`]）。
+    /// 接着重打那段拼音选了别的词，那次记的学习就退回去（见 `apply_retraction`）。
     /// 删得比记着的几次上屏加起来还多说明在改别处，全忘掉。
     pub fn note_backspace(&mut self) {
         let Some(commit) = self

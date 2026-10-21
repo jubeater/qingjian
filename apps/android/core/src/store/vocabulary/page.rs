@@ -19,7 +19,7 @@ pub struct VocabularyPage {
     /// 等级从易到难（`A1`…`C2`）；这门语言没有等级表为空。
     pub levels: Vec<String>,
 
-    /// 符合筛选的词数；`words` 最多给 [`super::PAGE_LIMIT`] 条。
+    /// 符合筛选的词数；`words` 最多给 `PAGE_LIMIT` 条。
     pub matched: u64,
 
     pub words: Vec<VocabularyWord>,

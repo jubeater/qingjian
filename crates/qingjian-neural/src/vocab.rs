@@ -94,7 +94,7 @@ impl Vocab {
         text.chars().all(|c| self.index.contains_key(&c))
     }
 
-    /// 逐字符编码，不认识的记 [`UNK`]。
+    /// 逐字符编码，不认识的记 `UNK`。
     pub fn encode(&self, text: &str) -> Vec<u32> {
         text.chars()
             .map(|c| self.index.get(&c).copied().unwrap_or(UNK))

@@ -50,7 +50,7 @@ pub fn is_fully_segmentable(text: &str) -> bool {
 /// 切分上限。简拼让歧义切分数量指数增长，每个位置只保留这么多种最优切分。
 const MAX_SEGMENTATIONS: usize = 8;
 
-/// 切分。返回按「音节少、不完整音节少、前面的音节长」排序的切分，最多 [`MAX_SEGMENTATIONS`] 种。
+/// 切分。返回按「音节少、不完整音节少、前面的音节长」排序的切分，最多 `MAX_SEGMENTATIONS` 种。
 pub fn segment(input: &str) -> Result<Vec<Segmentation>, ParseError> {
     let input = input.trim();
     if input.is_empty() {
